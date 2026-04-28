@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Seguridad - Ecuador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .map-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+        .map-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        .marker:hover {
+            transform: translate(-50%, -50%) scale(1.6);
+            z-index: 50;
+        }
+        .marker-pulse {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+        }
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+        }
+        .tooltip {
+            position: fixed;
+            pointer-events: none;
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 200px;
+            backdrop-filter: blur(5px);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div class="max-w-[1400px] mx-auto p-4 md:p-10">
+        <!-- Encabezado Mejorado -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">Sistema de Control Operativo</h1>
+                <p class="text-slate-500 font-medium text-sm">Visualización de Seguridad por Provincia</p>
+            </div>
+            <div class="flex gap-3">
+                <div class="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+                    <span class="w-2.5 h-2.5 bg-blue-600 rounded-full animate-pulse"></span>
+                    <span class="text-xs font-bold text-blue-700">Sedes Principales</span>
+                </div>
+                <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-xl border border-green-100">
+                    <span class="w-2.5 h-2.5 bg-green-600 rounded-full"></span>
+                    <span class="text-xs font-bold text-green-700">Agencias Locales</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+            
+            <!-- Mapa con URL Externa -->
+            <div class="xl:col-span-8 bg-white p-4 rounded-[2rem] shadow-xl border border-slate-200">
+                <div class="map-wrapper" id="map-container">
+                    <!-- URL del sitio web proporcionado -->
+                    <img src="https://mundomapa.com/wp-content/uploads/Mapa-de-Ecuador-blanco-con-nombres.jpg" 
+                         alt="Mapa Ecuador" 
+                         class="map-image" 
+                         id="ecuador-map"
+                         onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/e0/Mapa_provincias_Ecuador.png'">
+                    
+                    <div id="markers-layer"></div>
+                </div>
+                <p class="mt-4 text-[10px] text-center text-slate-400 italic">Fuente: mundomapa.com | Interacción activa</p>
+            </div>
+
+            <!-- Panel de Información -->
+            <div class="xl:col-span-4 flex flex-col gap-6">
+                <!-- Estadísticas -->
+                <div class="bg-slate-900 p-8 rounded-[2rem] shadow-2xl text-white">
+                    <h3 class="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-6">Totales del Sistema</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                            <p class="text-3xl font-black" id="total-puestos">0</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Puestos</p>
+                        </div>
+                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                            <p class="text-3xl font-black text-blue-400" id="total-guardias">0</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Guardias</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de Provincias -->
+                <div class="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
+                    <h2 class="text-lg font-black text-slate-800 mb-4 px-2">Detalle por Zona</h2>
+                    <div id="province-list" class="space-y-2 overflow-y-auto max-h-[480px] pr-2 custom-scrollbar">
+                        <!-- Items generados por JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        // Datos calibrados para la imagen de mundomapa.com
+        const data = {
+            "AZUAY": { x: 47, y: 67, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 4, guardias: 5 },
+            "EL ORO": { x: 36, y: 73, tipo: "AGENCIA", estado: "VIGENTE", puestos: 9, guardias: 17 },
+            "ESMERALDAS": { x: 41, y: 17, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 10, guardias: 27 },
+            "GUAYAS": { x: 35, y: 56, tipo: "MATRIZ", estado: "VIGENTE", puestos: 87, guardias: 199 },
+            "IMBABURA": { x: 58, y: 18, tipo: "AGENCIA", estado: "VIGENTE", puestos: 1, guardias: 3 },
+            "LOJA": { x: 39, y: 84, tipo: "AGENCIA", estado: "VIGENTE", puestos: 1, guardias: 3 },
+            "LOS RIOS": { x: 40, y: 49, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 10, guardias: 13 },
+            "MANABI": { x: 28, y: 36, tipo: "SUCURSAL", estado: "VIGENTE", puestos: 46, guardias: 102 },
+            "PICHINCHA": { x: 53, y: 28, tipo: "SUCURSAL", estado: "RENOVANDO", puestos: 58, guardias: 153 },
+            "SANTO DOMINGO": { x: 46, y: 32, tipo: "AGENCIA", estado: "VIGENTE", puestos: 11, guardias: 21 },
+            "TUNGURAHUA": { x: 55, y: 44, tipo: "AGENCIA", estado: "VIGENTE", puestos: 4, guardias: 5 }
+        };
+
+        const tooltip = document.getElementById('tooltip');
+        const markersLayer = document.getElementById('markers-layer');
+        const listContainer = document.getElementById('province-list');
+
+        function init() {
+            let totalP = 0;
+            let totalG = 0;
+            const sortedNames = Object.keys(data).sort();
+
+            sortedNames.forEach(name => {
+                const info = data[name];
+                totalP += info.puestos;
+                totalG += info.guardias;
+                
+                createMarker(name, info);
+                createListItem(name, info);
+            });
+
+            document.getElementById('total-puestos').innerText = totalP;
+            document.getElementById('total-guardias').innerText = totalG.toLocaleString();
+        }
+
+        function createMarker(name, info) {
+            const isMain = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL');
+            const color = isMain ? '#2563eb' : '#16a34a';
+            const cleanId = name.replace(/\s/g, '');
+
+            const marker = document.createElement('div');
+            marker.className = 'marker';
+            marker.style.left = info.x + '%';
+            marker.style.top = info.y + '%';
+            marker.style.backgroundColor = color;
+            marker.id = `marker-${cleanId}`;
+
+            const pulse = document.createElement('div');
+            pulse.className = 'marker-pulse';
+            pulse.style.backgroundColor = color;
+            marker.appendChild(pulse);
+
+            marker.onmousemove = (e) => showTooltip(e, name, info);
+            marker.onmouseleave = hideTooltip;
+            marker.onclick = () => {
+                const card = document.getElementById(`card-${cleanId}`);
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.classList.add('bg-blue-50', 'border-blue-400');
+                setTimeout(() => card.classList.remove('bg-blue-50', 'border-blue-400'), 1500);
+            };
+
+            markersLayer.appendChild(marker);
+        }
+
+        function createListItem(name, info) {
+            const cleanId = name.replace(/\s/g, '');
+            const isMain = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL');
+            
+            const div = document.createElement('div');
+            div.id = `card-${cleanId}`;
+            div.className = "p-4 bg-slate-50 border border-slate-200 rounded-2xl transition-all hover:shadow-md cursor-pointer group";
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <h4 class="font-black text-sm text-slate-800 group-hover:text-blue-600">${name}</h4>
+                    <span class="text-[9px] font-bold px-2 py-0.5 rounded ${isMain ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}">${info.tipo}</span>
+                </div>
+                <div class="flex gap-4 text-[11px]">
+                    <span class="text-slate-500"><b class="text-slate-800">${info.puestos}</b> Puestos</span>
+                    <span class="text-slate-500"><b class="text-slate-800">${info.guardias}</b> Guardias</span>
+                    <span class="ml-auto ${info.estado === 'VIGENTE' ? 'text-green-600' : 'text-amber-600'} font-bold">${info.estado}</span>
+                </div>
+            `;
+            
+            div.onclick = () => {
+                const marker = document.getElementById(`marker-${cleanId}`);
+                marker.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                setTimeout(() => marker.style.transform = '', 1000);
+            };
+
+            listContainer.appendChild(div);
+        }
+
+        function showTooltip(e, name, info) {
+            tooltip.style.display = 'block';
+            tooltip.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-400 uppercase mb-1">${info.tipo}</div>
+                <div class="text-base font-black border-b border-white/10 pb-2 mb-2">${name}</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-slate-400 text-[10px]">PUESTOS</div>
+                        <div class="font-bold">${info.puestos}</div>
+                    </div>
+                    <div>
+                        <div class="text-slate-400 text-[10px]">GUARDIAS</div>
+                        <div class="font-bold text-blue-400">${info.guardias}</div>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300">
+                    Estado: <span class="${info.estado === 'VIGENTE' ? 'text-green-400' : 'text-amber-400'} font-bold">${info.estado}</span>
+                </div>
+            `;
+            
+            const x = e.clientX + 20;
+            const y = e.clientY + 20;
+            
+            if (x + 200 > window.innerWidth) tooltip.style.left = (e.clientX - 220) + 'px';
+            else tooltip.style.left = x + 'px';
+            
+            if (y + 150 > window.innerHeight) tooltip.style.top = (e.clientY - 160) + 'px';
+            else tooltip.style.top = y + 'px';
+        }
+
+        function hideTooltip() { tooltip.style.display = 'none'; }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

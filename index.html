@@ -125,7 +125,7 @@
                         </div>
                         <div class="bg-white/5 p-4 rounded-3xl border border-white/10">
                             <p class="text-3xl font-black text-green-400" id="total-armas">0</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Arma(s)</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Arma(s) Operativas</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-3 gap-3">
@@ -145,12 +145,40 @@
                 </div>
 
                 <!-- Lista de Provincias -->
-                <div class="bg-white p-6 rounded-[3rem] shadow-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
-                    <h2 class="text-xl font-black text-slate-800 mb-6 px-2">Detalle por Provincia</h2>
-                    <div id="province-list" class="space-y-3 overflow-y-auto max-h-[450px] pr-2 custom-scrollbar">
+                <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-200 flex flex-col">
+                    <h2 class="text-xl font-black text-slate-800 mb-4 px-2">Detalle por Provincia</h2>
+                    <div id="province-list" class="space-y-3 overflow-y-auto max-h-[250px] 2xl:max-h-[350px] pr-2 custom-scrollbar">
                         <!-- Items dinámicos -->
                     </div>
                 </div>
+
+                <!-- Resumen de Armamento (Nueva Tabla) -->
+                <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-200">
+                    <h2 class="text-xl font-black text-slate-800 mb-4 px-2">Resumen Armamento</h2>
+                    <div class="flex flex-col gap-2">
+                        <!-- Operativas -->
+                        <div class="flex justify-between items-center bg-green-50 p-3 rounded-xl border border-green-100">
+                            <span class="text-[11px] font-bold text-green-700 uppercase tracking-wide">Operativa(s)</span>
+                            <span class="font-black text-green-600 text-lg" id="armas-operativas-tbl">0</span>
+                        </div>
+                        <!-- Rastrillo -->
+                        <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Rastrillo</span>
+                            <span class="font-black text-slate-700 text-lg">289</span>
+                        </div>
+                        <!-- Pérdida/Robada -->
+                        <div class="flex justify-between items-center bg-red-50 p-3 rounded-xl border border-red-100">
+                            <span class="text-[11px] font-bold text-red-700 uppercase tracking-wide">Pérdida/Robada</span>
+                            <span class="font-black text-red-600 text-lg">1</span>
+                        </div>
+                        <!-- Global -->
+                        <div class="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800 mt-2 shadow-md">
+                            <span class="text-[12px] font-black text-white uppercase tracking-wider">Global</span>
+                            <span class="font-black text-white text-xl">414</span>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -164,7 +192,8 @@
             "AZUAY": { x: 47, y: 67, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 1, puestos: 4, armas: 0, guardias: 5, cat: 'active' },
             "EL ORO": { x: 36, y: 73, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 3, puestos: 9, armas: 3, guardias: 17, cat: 'active' },
             "ESMERALDAS": { x: 41, y: 17, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 1, puestos: 10, armas: 0, guardias: 27, cat: 'active' },
-            "GUAYAS": { x: 35, y: 56, tipo: "MATRIZ", estado: "VIGENTE", proyectos: 6, puestos: 87, armas: 66, guardias: 199, cat: 'active' },
+            // GUAYAS ACTUALIZADO: +1 puesto (88), +7 armas (73)
+            "GUAYAS": { x: 35, y: 56, tipo: "MATRIZ", estado: "VIGENTE", proyectos: 6, puestos: 88, armas: 73, guardias: 199, cat: 'active' },
             "IMBABURA": { x: 58, y: 18, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 1, armas: 0, guardias: 3, cat: 'active' },
             "LOJA": { x: 39, y: 84, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 1, armas: 0, guardias: 3, cat: 'active' },
             "LOS RIOS": { x: 40, y: 49, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 3, puestos: 10, armas: 0, guardias: 13, cat: 'active' },
@@ -215,11 +244,17 @@
                 createListItem(name, info);
             });
 
+            // Actualización de contadores globales
             document.getElementById('total-guardias').innerText = totals.G.toLocaleString();
             document.getElementById('total-armas').innerText = totals.A;
             document.getElementById('total-puestos').innerText = totals.Pu;
             document.getElementById('total-proyectos').innerText = totals.Pr;
             document.getElementById('total-provincias').innerText = totals.Prov;
+
+            // Vincular armas operativas a la nueva tabla de Resumen de Armamento
+            if(document.getElementById('armas-operativas-tbl')){
+                document.getElementById('armas-operativas-tbl').innerText = totals.A;
+            }
         }
 
         function createMarker(name, info) {
@@ -325,6 +360,10 @@
                     <div>
                         <div class="text-slate-400 text-[10px] uppercase">Proyecto(s)</div>
                         <div class="font-bold">${info.proyectos}</div>
+                    </div>
+                    <div>
+                        <div class="text-slate-400 text-[10px] uppercase">Arma(s)</div>
+                        <div class="font-bold text-green-400">${info.armas}</div>
                     </div>
                 </div>
                 <div class="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300 uppercase">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Seguridad - Ecuador</title>
+    <title>Ecuador - Seguridad Operativa</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .map-wrapper {
@@ -11,8 +11,8 @@
             display: inline-block;
             width: 100%;
             background: white;
-            border-radius: 1.5rem;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 2rem;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);
             overflow: hidden;
         }
         .map-image {
@@ -22,14 +22,14 @@
         }
         .marker {
             position: absolute;
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             cursor: pointer;
             transform: translate(-50%, -50%);
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: 2px solid white;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             z-index: 10;
         }
         .marker:hover {
@@ -54,106 +54,141 @@
         .tooltip {
             position: fixed;
             pointer-events: none;
-            background: rgba(15, 23, 42, 0.95);
+            background: rgba(15, 23, 42, 0.98);
             color: white;
-            padding: 14px;
-            border-radius: 10px;
+            padding: 16px;
+            border-radius: 14px;
             font-size: 13px;
             z-index: 9999;
             display: none;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
             border: 1px solid rgba(255,255,255,0.1);
-            min-width: 200px;
-            backdrop-filter: blur(5px);
+            min-width: 240px;
+            backdrop-filter: blur(8px);
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900">
 
-    <div class="max-w-[1400px] mx-auto p-4 md:p-10">
-        <!-- Encabezado Mejorado -->
-        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+    <div class="max-w-[1440px] mx-auto p-4 md:p-8">
+        <!-- Título -->
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200">
             <div>
-                <h1 class="text-3xl font-black text-slate-900 tracking-tight">Sistema de Control Operativo</h1>
-                <p class="text-slate-500 font-medium text-sm">Visualización de Seguridad por Provincia</p>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">Seguridad Operativa - Ecuador</h1>
+                <p class="text-slate-500 font-medium text-sm text-blue-600">Control de Recursos y Proyectos Nacionales</p>
             </div>
-            <div class="flex gap-3">
-                <div class="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-                    <span class="w-2.5 h-2.5 bg-blue-600 rounded-full animate-pulse"></span>
-                    <span class="text-xs font-bold text-blue-700">Sedes Principales</span>
+            <div class="flex flex-wrap gap-2">
+                <div class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100">
+                    <span class="w-3 h-3 bg-blue-600 rounded-full"></span>
+                    <span class="text-[10px] font-bold text-blue-700">Matriz/Sucursal</span>
                 </div>
-                <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-xl border border-green-100">
-                    <span class="w-2.5 h-2.5 bg-green-600 rounded-full"></span>
-                    <span class="text-xs font-bold text-green-700">Agencias Locales</span>
+                <div class="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100">
+                    <span class="w-3 h-3 bg-green-600 rounded-full"></span>
+                    <span class="text-[10px] font-bold text-green-700">Agencia con Proyectos</span>
+                </div>
+                <div class="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-xl border border-yellow-200">
+                    <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                    <span class="text-[10px] font-bold text-yellow-700">Agencia sin Proyecto</span>
+                </div>
+                <div class="flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100">
+                    <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+                    <span class="text-[10px] font-bold text-red-700">Sin Presencia</span>
                 </div>
             </div>
         </header>
 
         <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
             
-            <!-- Mapa con URL Externa -->
-            <div class="xl:col-span-8 bg-white p-4 rounded-[2rem] shadow-xl border border-slate-200">
+            <!-- Mapa -->
+            <div class="xl:col-span-8 bg-white p-4 rounded-[3rem] shadow-xl border border-slate-200">
                 <div class="map-wrapper" id="map-container">
-                    <!-- URL del sitio web proporcionado -->
                     <img src="https://mundomapa.com/wp-content/uploads/Mapa-de-Ecuador-blanco-con-nombres.jpg" 
-                         alt="Mapa Ecuador" 
+                         alt="Mapa de Ecuador" 
                          class="map-image" 
-                         id="ecuador-map"
-                         onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/e0/Mapa_provincias_Ecuador.png'">
-                    
+                         id="ecuador-map">
                     <div id="markers-layer"></div>
                 </div>
-                <p class="mt-4 text-[10px] text-center text-slate-400 italic">Fuente: mundomapa.com | Interacción activa</p>
             </div>
 
-            <!-- Panel de Información -->
+            <!-- Panel de Datos -->
             <div class="xl:col-span-4 flex flex-col gap-6">
-                <!-- Estadísticas -->
-                <div class="bg-slate-900 p-8 rounded-[2rem] shadow-2xl text-white">
-                    <h3 class="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-6">Totales del Sistema</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                            <p class="text-3xl font-black" id="total-puestos">0</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Puestos</p>
-                        </div>
-                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                <!-- Resumen Ejecutivo (Cuadro Negro) -->
+                <div class="bg-slate-900 p-8 rounded-[3rem] shadow-2xl text-white">
+                    <h3 class="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-6">Resumen Ejecutivo Nacional</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-white/5 p-4 rounded-3xl border border-white/10">
                             <p class="text-3xl font-black text-blue-400" id="total-guardias">0</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Guardias</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Guardias</p>
+                        </div>
+                        <div class="bg-white/5 p-4 rounded-3xl border border-white/10">
+                            <p class="text-3xl font-black text-green-400" id="total-armas">0</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Armas</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/10 text-center">
+                            <p class="text-xl font-black" id="total-puestos">0</p>
+                            <p class="text-[8px] text-slate-400 font-bold uppercase">Puestos</p>
+                        </div>
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/10 text-center">
+                            <p class="text-xl font-black" id="total-proyectos">0</p>
+                            <p class="text-[8px] text-slate-400 font-bold uppercase">Proyectos</p>
+                        </div>
+                        <div class="bg-white/5 p-3 rounded-2xl border border-white/10 text-center">
+                            <p class="text-xl font-black" id="total-provincias">0</p>
+                            <p class="text-[8px] text-slate-400 font-bold uppercase">Prov. Act.</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Lista de Provincias -->
-                <div class="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
-                    <h2 class="text-lg font-black text-slate-800 mb-4 px-2">Detalle por Zona</h2>
-                    <div id="province-list" class="space-y-2 overflow-y-auto max-h-[480px] pr-2 custom-scrollbar">
-                        <!-- Items generados por JS -->
+                <div class="bg-white p-6 rounded-[3rem] shadow-xl border border-slate-200 flex-1 overflow-hidden flex flex-col">
+                    <h2 class="text-xl font-black text-slate-800 mb-6 px-2">Detalle por Provincia</h2>
+                    <div id="province-list" class="space-y-3 overflow-y-auto max-h-[450px] pr-2 custom-scrollbar">
+                        <!-- Items dinámicos -->
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Tooltip -->
     <div id="tooltip" class="tooltip"></div>
 
     <script>
-        // Datos calibrados para la imagen de mundomapa.com
+        // Datos maestros
         const data = {
-            "AZUAY": { x: 47, y: 67, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 4, guardias: 5 },
-            "EL ORO": { x: 36, y: 73, tipo: "AGENCIA", estado: "VIGENTE", puestos: 9, guardias: 17 },
-            "ESMERALDAS": { x: 41, y: 17, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 10, guardias: 27 },
-            "GUAYAS": { x: 35, y: 56, tipo: "MATRIZ", estado: "VIGENTE", puestos: 87, guardias: 199 },
-            "IMBABURA": { x: 58, y: 18, tipo: "AGENCIA", estado: "VIGENTE", puestos: 1, guardias: 3 },
-            "LOJA": { x: 39, y: 84, tipo: "AGENCIA", estado: "VIGENTE", puestos: 1, guardias: 3 },
-            "LOS RIOS": { x: 40, y: 49, tipo: "AGENCIA", estado: "RENOVANDO", puestos: 10, guardias: 13 },
-            "MANABI": { x: 28, y: 36, tipo: "SUCURSAL", estado: "VIGENTE", puestos: 46, guardias: 102 },
-            "PICHINCHA": { x: 53, y: 28, tipo: "SUCURSAL", estado: "RENOVANDO", puestos: 58, guardias: 153 },
-            "SANTO DOMINGO": { x: 46, y: 32, tipo: "AGENCIA", estado: "VIGENTE", puestos: 11, guardias: 21 },
-            "TUNGURAHUA": { x: 55, y: 44, tipo: "AGENCIA", estado: "VIGENTE", puestos: 4, guardias: 5 }
+            // ACTIVAS CON PROYECTOS
+            "AZUAY": { x: 47, y: 67, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 1, puestos: 4, armas: 0, guardias: 5, cat: 'active' },
+            "EL ORO": { x: 36, y: 73, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 3, puestos: 9, armas: 3, guardias: 17, cat: 'active' },
+            "ESMERALDAS": { x: 41, y: 17, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 1, puestos: 10, armas: 0, guardias: 27, cat: 'active' },
+            "GUAYAS": { x: 35, y: 56, tipo: "MATRIZ", estado: "VIGENTE", proyectos: 6, puestos: 87, armas: 66, guardias: 199, cat: 'active' },
+            "IMBABURA": { x: 58, y: 18, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 1, armas: 0, guardias: 3, cat: 'active' },
+            "LOJA": { x: 39, y: 84, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 1, armas: 0, guardias: 3, cat: 'active' },
+            "LOS RIOS": { x: 40, y: 49, tipo: "AGENCIA", estado: "CADUCADA (RENOVANDO)", proyectos: 3, puestos: 10, armas: 0, guardias: 13, cat: 'active' },
+            "MANABI": { x: 28, y: 36, tipo: "SUCURSAL", estado: "VIGENTE", proyectos: 4, puestos: 46, armas: 9, guardias: 102, cat: 'active' },
+            "PICHINCHA": { x: 53, y: 28, tipo: "SUCURSAL", estado: "CADUCADA (RENOVANDO)", proyectos: 6, puestos: 58, armas: 34, guardias: 153, cat: 'active' },
+            "SANTO DOMINGO": { x: 46, y: 32, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 11, armas: 1, guardias: 21, cat: 'active' },
+            "TUNGURAHUA": { x: 55, y: 44, tipo: "AGENCIA", estado: "VIGENTE", proyectos: 1, puestos: 4, armas: 4, guardias: 5, cat: 'active' },
+
+            // AGENCIAS ACTIVAS SIN PROYECTOS (AMARILLO)
+            "CAÑAR": { x: 46, y: 62, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "CARCHI": { x: 61, y: 12, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "COTOPAXI": { x: 51, y: 38, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "MORONA SANTIAGO": { x: 60, y: 65, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "NAPO": { x: 65, y: 37, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "SANTA ELENA": { x: 19, y: 58, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+            "ZAMORA CHINCHIPE": { x: 48, y: 88, tipo: "AGENCIA", estado: "SIN PROYECTOS", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'agency_only' },
+
+            // SIN NADA (ROJO)
+            "BOLIVAR": { x: 44, y: 53, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' },
+            "CHIMBORAZO": { x: 52, y: 54, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' },
+            "PASTAZA": { x: 72, y: 51, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' },
+            "ORELLANA": { x: 78, y: 35, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' },
+            "GALAPAGOS": { x: 7, y: 15, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' },
+            "SUCUMBIOS": { x: 83, y: 17, tipo: "N/A", estado: "SIN PRESENCIA", proyectos: 0, puestos: 0, armas: 0, guardias: 0, cat: 'none' }
         };
 
         const tooltip = document.getElementById('tooltip');
@@ -161,28 +196,41 @@
         const listContainer = document.getElementById('province-list');
 
         function init() {
-            let totalP = 0;
-            let totalG = 0;
+            let totals = { G: 0, A: 0, Pu: 0, Pr: 0, Prov: 0 };
             const sortedNames = Object.keys(data).sort();
 
             sortedNames.forEach(name => {
                 const info = data[name];
-                totalP += info.puestos;
-                totalG += info.guardias;
+                
+                // Solo sumar si tienen proyectos activos
+                if (info.proyectos > 0) {
+                    totals.G += info.guardias;
+                    totals.A += info.armas;
+                    totals.Pu += info.puestos;
+                    totals.Pr += info.proyectos;
+                    totals.Prov++;
+                }
                 
                 createMarker(name, info);
                 createListItem(name, info);
             });
 
-            document.getElementById('total-puestos').innerText = totalP;
-            document.getElementById('total-guardias').innerText = totalG.toLocaleString();
+            document.getElementById('total-guardias').innerText = totals.G.toLocaleString();
+            document.getElementById('total-armas').innerText = totals.A;
+            document.getElementById('total-puestos').innerText = totals.Pu;
+            document.getElementById('total-proyectos').innerText = totals.Pr;
+            document.getElementById('total-provincias').innerText = totals.Prov;
         }
 
         function createMarker(name, info) {
-            const isMain = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL');
-            const color = isMain ? '#2563eb' : '#16a34a';
-            const cleanId = name.replace(/\s/g, '');
+            let color = '#ef4444'; // Por defecto Rojo
+            if (info.cat === 'active') {
+                color = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL') ? '#2563eb' : '#16a34a';
+            } else if (info.cat === 'agency_only') {
+                color = '#f59e0b'; // Amarillo/Ambar
+            }
 
+            const cleanId = name.replace(/\s/g, '');
             const marker = document.createElement('div');
             marker.className = 'marker';
             marker.style.left = info.x + '%';
@@ -190,44 +238,61 @@
             marker.style.backgroundColor = color;
             marker.id = `marker-${cleanId}`;
 
-            const pulse = document.createElement('div');
-            pulse.className = 'marker-pulse';
-            pulse.style.backgroundColor = color;
-            marker.appendChild(pulse);
+            // Solo pulso para los que tienen proyectos
+            if (info.cat === 'active') {
+                const pulse = document.createElement('div');
+                pulse.className = 'marker-pulse';
+                pulse.style.backgroundColor = color;
+                marker.appendChild(pulse);
+            }
 
             marker.onmousemove = (e) => showTooltip(e, name, info);
             marker.onmouseleave = hideTooltip;
-            marker.onclick = () => {
-                const card = document.getElementById(`card-${cleanId}`);
-                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                card.classList.add('bg-blue-50', 'border-blue-400');
-                setTimeout(() => card.classList.remove('bg-blue-50', 'border-blue-400'), 1500);
-            };
+            marker.onclick = () => highlightCard(cleanId);
 
             markersLayer.appendChild(marker);
         }
 
         function createListItem(name, info) {
             const cleanId = name.replace(/\s/g, '');
-            const isMain = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL');
-            
+            let borderClass = 'border-l-red-500';
+            let bgClass = 'bg-slate-50';
+
+            if (info.cat === 'active') {
+                borderClass = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL') ? 'border-l-blue-600' : 'border-l-green-600';
+                bgClass = 'bg-white';
+            } else if (info.cat === 'agency_only') {
+                borderClass = 'border-l-yellow-500';
+            }
+
             const div = document.createElement('div');
             div.id = `card-${cleanId}`;
-            div.className = "p-4 bg-slate-50 border border-slate-200 rounded-2xl transition-all hover:shadow-md cursor-pointer group";
+            div.className = `p-4 ${bgClass} border border-slate-200 rounded-[1.5rem] transition-all hover:shadow-lg cursor-pointer group border-l-8 ${borderClass}`;
+            
             div.innerHTML = `
-                <div class="flex justify-between items-center mb-1">
-                    <h4 class="font-black text-sm text-slate-800 group-hover:text-blue-600">${name}</h4>
-                    <span class="text-[9px] font-bold px-2 py-0.5 rounded ${isMain ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}">${info.tipo}</span>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-black text-slate-800 text-sm group-hover:text-blue-600 transition-colors">${name}</h4>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">${info.estado}</p>
+                    </div>
+                    ${info.proyectos > 0 ? `<span class="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full">${info.proyectos} PROY.</span>` : ''}
                 </div>
-                <div class="flex gap-4 text-[11px]">
-                    <span class="text-slate-500"><b class="text-slate-800">${info.puestos}</b> Puestos</span>
-                    <span class="text-slate-500"><b class="text-slate-800">${info.guardias}</b> Guardias</span>
-                    <span class="ml-auto ${info.estado === 'VIGENTE' ? 'text-green-600' : 'text-amber-600'} font-bold">${info.estado}</span>
-                </div>
+                ${info.proyectos > 0 ? `
+                <div class="grid grid-cols-2 gap-2 mt-3 text-[10px]">
+                    <div class="flex justify-between border-b border-slate-100 pb-1">
+                        <span class="text-slate-400 font-bold uppercase">Armas</span>
+                        <span class="font-black text-slate-700">${info.armas}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-100 pb-1">
+                        <span class="text-slate-400 font-bold uppercase">Guardias</span>
+                        <span class="font-black text-blue-600">${info.guardias}</span>
+                    </div>
+                </div>` : ''}
             `;
             
             div.onclick = () => {
                 const marker = document.getElementById(`marker-${cleanId}`);
+                marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 marker.style.transform = 'translate(-50%, -50%) scale(2.5)';
                 setTimeout(() => marker.style.transform = '', 1000);
             };
@@ -235,33 +300,40 @@
             listContainer.appendChild(div);
         }
 
+        function highlightCard(id) {
+            const card = document.getElementById(`card-${id}`);
+            if(!card) return;
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('ring-4', 'ring-blue-400/30');
+            setTimeout(() => card.classList.remove('ring-4', 'ring-blue-400/30'), 2000);
+        }
+
         function showTooltip(e, name, info) {
             tooltip.style.display = 'block';
+            let colorHeader = 'text-red-500';
+            if (info.cat === 'active') colorHeader = 'text-blue-400';
+            else if (info.cat === 'agency_only') colorHeader = 'text-yellow-500';
+
             tooltip.innerHTML = `
-                <div class="text-[10px] font-bold text-blue-400 uppercase mb-1">${info.tipo}</div>
-                <div class="text-base font-black border-b border-white/10 pb-2 mb-2">${name}</div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <div class="text-slate-400 text-[10px]">PUESTOS</div>
-                        <div class="font-bold">${info.puestos}</div>
-                    </div>
-                    <div>
-                        <div class="text-slate-400 text-[10px]">GUARDIAS</div>
-                        <div class="font-bold text-blue-400">${info.guardias}</div>
-                    </div>
-                </div>
-                <div class="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300">
-                    Estado: <span class="${info.estado === 'VIGENTE' ? 'text-green-400' : 'text-amber-400'} font-bold">${info.estado}</span>
+                <div class="text-[10px] font-bold ${colorHeader} uppercase mb-1">${info.tipo}</div>
+                <div class="text-lg font-black border-b border-white/10 pb-2 mb-2 uppercase">${name}</div>
+                <div class="space-y-1">
+                    <div class="text-[10px] text-slate-400">ESTADO: <b>${info.estado}</b></div>
+                    ${info.proyectos > 0 ? `
+                    <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
+                        <div class="text-[9px]">PROYECTOS: <b class="text-white">${info.proyectos}</b></div>
+                        <div class="text-[9px]">ARMAS: <b class="text-green-400">${info.armas}</b></div>
+                        <div class="text-[9px]">PUESTOS: <b class="text-white">${info.puestos}</b></div>
+                        <div class="text-[9px]">GUARDIAS: <b class="text-blue-400">${info.guardias}</b></div>
+                    </div>` : ''}
                 </div>
             `;
             
             const x = e.clientX + 20;
             const y = e.clientY + 20;
-            
-            if (x + 200 > window.innerWidth) tooltip.style.left = (e.clientX - 220) + 'px';
+            if (x + 240 > window.innerWidth) tooltip.style.left = (e.clientX - 260) + 'px';
             else tooltip.style.left = x + 'px';
-            
-            if (y + 150 > window.innerHeight) tooltip.style.top = (e.clientY - 160) + 'px';
+            if (y + 180 > window.innerHeight) tooltip.style.top = (e.clientY - 200) + 'px';
             else tooltip.style.top = y + 'px';
         }
 

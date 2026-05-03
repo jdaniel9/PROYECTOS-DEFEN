@@ -258,7 +258,7 @@
     async function cargarDatos() {
         mostrarCargando(true);
         try {
-            if (APPS_SCRIPT_URL === "PEGA_AQUI_TU_URL_DE_APPS_SCRIPT") throw new Error("URL no configurada");
+            if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbwgQLv5MXKg8TtCPLal2H0T5rzg9lqXcns6XpohUaHFtUm5WONQMr9XGz7GFipZdY3hbg/exec") throw new Error("URL no configurada");
             const res  = await fetch(APPS_SCRIPT_URL);
             const json = await res.json();
             procesarDatosAPI(json);

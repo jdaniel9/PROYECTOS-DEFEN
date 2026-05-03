@@ -233,206 +233,38 @@
 
     <div id="tooltip" class="tooltip"></div>
 
-    <!-- Loading overlay -->
-    <div id="loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:12px;backdrop-filter:blur(4px);">
-        <div style="width:40px;height:40px;border:4px solid rgba(255,255,255,0.2);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        <p style="color:white;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;">Cargando datos desde Google Sheets…</p>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-    </div>
-
     <script>
     // =====================================================================
-    // CONFIGURACIÓN — pega aquí la URL de tu Apps Script tras publicarlo
+    // DATOS MAESTROS
     // =====================================================================
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwO0GvUIqV9VKcAcjI0K7sUa8YI9DxghI_ugwkeMoGuIBjIi_Y_EcRFxEAaNuKUnssYYA/exec";
+    const data = {
+        // ACTIVAS CON PROYECTOS
+        "AZUAY":          { x:47, y:67, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:1,  puestos:4,   armas:0,  guardias:5,   cat:'active' },
+        "EL ORO":         { x:36, y:73, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:2,  puestos:5,   armas:3,  guardias:12,  cat:'active' },
+        "ESMERALDAS":     { x:41, y:17, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:1,  puestos:10,  armas:0,  guardias:27,  cat:'active' },
+        "GUAYAS":         { x:35, y:56, tipo:"MATRIZ",   estado:"VIGENTE",                   proyectos:6,  puestos:88,  armas:73, guardias:200, cat:'active' },
+        "IMBABURA":       { x:58, y:18, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:1,   armas:0,  guardias:3,   cat:'active' },
+        "LOJA":           { x:39, y:84, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:1,   armas:0,  guardias:3,   cat:'active' },
+        "LOS RIOS":       { x:40, y:49, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:3,  puestos:10,  armas:0,  guardias:13,  cat:'active' },
+        "MANABI":         { x:28, y:36, tipo:"SUCURSAL", estado:"VIGENTE",                   proyectos:4,  puestos:46,  armas:9,  guardias:102, cat:'active' },
+        "PICHINCHA":      { x:53, y:28, tipo:"SUCURSAL", estado:"EN TRÁMITE",               proyectos:6,  puestos:58,  armas:34, guardias:153, cat:'active' },
+        "SANTO DOMINGO":  { x:46, y:32, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:11,  armas:1,  guardias:21,  cat:'active' },
+        "TUNGURAHUA":     { x:55, y:44, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:4,   armas:4,  guardias:5,   cat:'active' },
 
-    // =====================================================================
-    // ESTADO GLOBAL (se llena desde la API)
-    // =====================================================================
-    let data             = {};
-    let detalleProvincias = {};
-
-    // =====================================================================
-    // CARGA DESDE GOOGLE SHEETS (con fallback a datos locales)
-    // =====================================================================
-    async function cargarDatos() {
-        mostrarCargando(true);
-        try {
-            const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
-            const json = await res.json();
-            procesarDatosAPI(json);
-        } catch (e) {
-            console.warn("Usando datos locales:", e.message);
-            procesarDatosAPI(DATOS_LOCALES);
-        }
-        mostrarCargando(false);
-        init();
-    }
-
-    function mostrarCargando(activo) {
-        const el = document.getElementById('loading-overlay');
-        if (el) el.style.display = activo ? 'flex' : 'none';
-    }
-
-    // Convierte el JSON de la API (o datos locales) al formato que usa el dashboard
-    function procesarDatosAPI(json) {
-        data              = {};
-        detalleProvincias = {};
-        Object.keys(json).forEach(nombre => {
-            const p = json[nombre];
-            data[nombre] = {
-                x:         p.x,        y:         p.y,
-                tipo:      p.tipo,     estado:    p.estado,
-                cat:       p.cat,      guardias:  p.guardias,
-                armas:     p.armas,    puestos:   p.puestos,
-                proyectos: p.proyectos
-            };
-            // Soporta tanto el formato API (tramiteInfo separado)
-            // como el formato local (tramiteInfo embebido en el objeto)
-            const ti = p.tramiteInfo || {};
-            detalleProvincias[nombre] = {
-                tramite:        ti.tramite        || null,
-                vigenciaInicio: ti.vigenciaInicio || null,
-                vigenciaFin:    ti.vigenciaFin    || null,
-                estadoTramite:  ti.estadoTramite  || null,
-                supervisores:   p.supervisores    || [],
-                proyectosList:  p.proyectosList   || []
-            };
-        });
-    }
-
-    // =====================================================================
-    // DATOS LOCALES DE RESPALDO (si no hay URL configurada aún)
-    // =====================================================================
-    const DATOS_LOCALES = {
-        "AZUAY":          { x:47, y:67, tipo:"AGENCIA",  estado:"EN TRÁMITE",  proyectos:1,  puestos:4,  armas:0,  guardias:5,   cat:'active',
-            tramiteInfo: { tramite:"SOL-0002153858", vigenciaInicio:null, vigenciaFin:null, estadoTramite:"EN TRÁMITE — Registro de Inspección" },
-            supervisores: ["Freddy Carrera"],
-            proyectosList: [{ nombre:"COORDINACIÓN ZONAL 6", guardias:5, armas:0, puestos:4, fin:"2026-09-30", supervisores:["Freddy Carrera"] }] },
-
-        "BOLIVAR":        { x:44, y:53, tipo:"N/A",     estado:"SIN PRESENCIA", proyectos:0, puestos:0, armas:0, guardias:0, cat:'none',
-            tramiteInfo: { tramite:"TRA-0001318517", vigenciaInicio:"2023-08-04", vigenciaFin:"2025-08-04", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "CAÑAR":          { x:46, y:62, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001962141", vigenciaInicio:"2025-06-01", vigenciaFin:"2027-09-01", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "CARCHI":         { x:61, y:12, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001691256", vigenciaInicio:"2024-10-24", vigenciaFin:"2026-10-24", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "CHIMBORAZO":     { x:52, y:54, tipo:"N/A",     estado:"SIN PRESENCIA", proyectos:0, puestos:0, armas:0, guardias:0, cat:'none',
-            tramiteInfo: { tramite:"TRA-0001336444", vigenciaInicio:"2023-08-14", vigenciaFin:"2025-08-14", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "COTOPAXI":       { x:51, y:38, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001694291", vigenciaInicio:"2024-12-26", vigenciaFin:"2026-12-26", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "EL ORO":         { x:36, y:73, tipo:"AGENCIA", estado:"VIGENTE", proyectos:2, puestos:5, armas:3, guardias:12, cat:'active',
-            tramiteInfo: { tramite:"TRA-0002119371", vigenciaInicio:"2026-03-05", vigenciaFin:"2028-03-05", estadoTramite:"" },
-            supervisores: ["Raúl Illesca"],
-            proyectosList: [
-                { nombre:"MSP SANTA ROSA",  guardias:9, armas:2, puestos:3, fin:"2026-06-30", supervisores:["Raúl Illesca"] },
-                { nombre:"MERCADO MACHALA", guardias:3, armas:1, puestos:2, fin:"2026-12-13", supervisores:["Raúl Illesca"] }] },
-
-        "ESMERALDAS":     { x:41, y:17, tipo:"AGENCIA", estado:"EN TRÁMITE", proyectos:1, puestos:10, armas:0, guardias:27, cat:'active',
-            tramiteInfo: { tramite:"SOL-0002181487", vigenciaInicio:null, vigenciaFin:null, estadoTramite:"EN TRÁMITE — Registro de Inspección" },
-            supervisores: ["Johan Cuasaluzan"],
-            proyectosList: [{ nombre:"ESMERALDAS MIT", guardias:27, armas:0, puestos:10, fin:"2027-01-16", supervisores:["Johan Cuasaluzan"] }] },
-
-        "GALAPAGOS":      { x:7, y:15, tipo:"N/A", estado:"SIN REGISTRO", proyectos:0, puestos:0, armas:0, guardias:0, cat:'none',
-            tramiteInfo: { tramite:null, vigenciaInicio:null, vigenciaFin:null, estadoTramite:"Sin registro de trámite" },
-            supervisores:[], proyectosList:[] },
-
-        "GUAYAS":         { x:35, y:56, tipo:"MATRIZ", estado:"VIGENTE", proyectos:6, puestos:88, armas:64, guardias:200, cat:'active',
-            tramiteInfo: { tramite:"TRA-MATRIZ-GYE", vigenciaInicio:"2025-04-11", vigenciaFin:"2027-04-10", estadoTramite:"" },
-            supervisores: ["Johanna Hernández","Jorge Moya","Gerardo Crispín","Wilmer Flores"],
-            proyectosList: [
-                { nombre:"CNEL EP GUAYAQUIL/PLAYAS", guardias:128, armas:38, puestos:58, fin:"2026-06-13", supervisores:["Johanna Hernández","Jorge Moya","Gerardo Crispín"] },
-                { nombre:"IESS GUAYAS",              guardias:59,  armas:23, puestos:24, fin:"2026-11-30", supervisores:["Wilmer Flores"] },
-                { nombre:"MILAGRO EDU",              guardias:2,   armas:1,  puestos:1,  fin:"2026-10-31", supervisores:[] },
-                { nombre:"PEDRO CARBO EDU",          guardias:3,   armas:1,  puestos:1,  fin:"2026-12-31", supervisores:[] },
-                { nombre:"MSP SALITRE",              guardias:6,   armas:0,  puestos:2,  fin:"2026-07-04", supervisores:[] },
-                { nombre:"OTROS",              guardias:0,   armas:9,  puestos:0,  fin:"", supervisores:[] },
-                { nombre:"PREFECTURA VIP",           guardias:2,   armas:3,  puestos:2,  fin:"2027-03-10", supervisores:[] }] },
-
-        "IMBABURA":       { x:58, y:18, tipo:"AGENCIA", estado:"VIGENTE", proyectos:1, puestos:1, armas:0, guardias:3, cat:'active',
-            tramiteInfo: { tramite:"TRA-0001703808", vigenciaInicio:"2024-11-13", vigenciaFin:"2026-11-13", estadoTramite:"" },
-            supervisores: [],
-            proyectosList: [{ nombre:"COORDINACIÓN ZONAL 1", guardias:3, armas:0, puestos:1, fin:"2026-12-10", supervisores:[] }] },
-
-        "LOJA":           { x:39, y:84, tipo:"AGENCIA", estado:"VIGENTE", proyectos:1, puestos:1, armas:0, guardias:3, cat:'active',
-            tramiteInfo: { tramite:"TRA-0001690676", vigenciaInicio:"2024-11-05", vigenciaFin:"2026-11-05", estadoTramite:"" },
-            supervisores: [],
-            proyectosList: [{ nombre:"CELICA EDU", guardias:3, armas:0, puestos:1, fin:"2026-12-31", supervisores:[] }] },
-
-        "LOS RIOS":       { x:40, y:49, tipo:"AGENCIA", estado:"EN TRÁMITE", proyectos:3, puestos:10, armas:0, guardias:13, cat:'active',
-            tramiteInfo: { tramite:"SOL-0002184059", vigenciaInicio:null, vigenciaFin:null, estadoTramite:"EN TRÁMITE — Registro de Inspección" },
-            supervisores: ["Wilson Ramírez"],
-            proyectosList: [
-                { nombre:"MSP BABAHOYO 12H", guardias:3, armas:0, puestos:2, fin:"2026-06-30", supervisores:["Wilson Ramírez"] },
-                { nombre:"MSP BABAHOYO 8H",  guardias:7, armas:0, puestos:7, fin:"2026-06-30", supervisores:["Wilson Ramírez"] },
-                { nombre:"VINCES EDU",        guardias:3, armas:0, puestos:1, fin:"2026-08-31", supervisores:[] }] },
-
-        "MANABI":         { x:28, y:36, tipo:"SUCURSAL", estado:"VIGENTE", proyectos:4, puestos:46, armas:9, guardias:102, cat:'active',
-            tramiteInfo: { tramite:"SOL-0002177824", vigenciaInicio:"2026-04-14", vigenciaFin:"2028-04-14", estadoTramite:"" },
-            supervisores: ["Luis Zambrano","Edisson Moreira"],
-            proyectosList: [
-                { nombre:"APM",             guardias:42, armas:8, puestos:14, fin:"2026-12-19", supervisores:["Luis Zambrano"] },
-                { nombre:"PATIO 300",       guardias:3,  armas:0, puestos:1,  fin:"2027-01-09", supervisores:["Luis Zambrano"] },
-                { nombre:"HOSP PORTOVIEJO", guardias:7,  armas:1, puestos:6,  fin:"2027-01-28", supervisores:["Luis Zambrano"] },
-                { nombre:"EL CARMEN EDU",   guardias:50, armas:0, puestos:25, fin:"2026-07-12", supervisores:["Edisson Moreira"] }] },
-
-        "MORONA SANTIAGO":{ x:60, y:65, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001704006", vigenciaInicio:"2024-11-26", vigenciaFin:"2026-11-26", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "NAPO":           { x:65, y:37, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001704249", vigenciaInicio:"2024-11-26", vigenciaFin:"2026-11-26", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "ORELLANA":       { x:78, y:35, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001319401", vigenciaInicio:"2023-07-18", vigenciaFin:"2025-07-18", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "PASTAZA":        { x:72, y:51, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001309245", vigenciaInicio:"2023-11-09", vigenciaFin:"2025-11-09", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "PICHINCHA":      { x:53, y:28, tipo:"SUCURSAL", estado:"EN TRÁMITE", proyectos:6, puestos:58, armas:34, guardias:153, cat:'active',
-            tramiteInfo: { tramite:"SOL-0002189038", vigenciaInicio:null, vigenciaFin:null, estadoTramite:"EN TRÁMITE — Registro de Inspección" },
-            supervisores: ["Milton Márquez","Lenin Cerón","Daniel Balero"],
-            proyectosList: [
-                { nombre:"MINISTERIO TRABAJO",               guardias:2,  armas:1,  puestos:2,  fin:"2026-07-28", supervisores:["Milton Márquez"] },
-                { nombre:"TUMBACO TABABELA",                 guardias:3,  armas:1,  puestos:1,  fin:"2026-12-31", supervisores:["Milton Márquez"] },
-                { nombre:"MINISTERIO SALUD PÚBLICA MATRIZ",  guardias:15, armas:5,  puestos:5,  fin:"2026-12-09", supervisores:["Milton Márquez"] },
-                { nombre:"DISTRITAL 17D03",                  guardias:84, armas:5,  puestos:28, fin:"2026-06-03", supervisores:["Lenin Cerón"] },
-                { nombre:"MINISTERIO DE GOBIERNO",           guardias:4,  armas:4,  puestos:4,  fin:"2027-01-06", supervisores:["Milton Márquez"] },
-                { nombre:"MERCADO MAYORISTA QUITO",          guardias:45, armas:18, puestos:18, fin:"2027-04-06", supervisores:["Daniel Balero"] }] },
-
-        "SANTA ELENA":    { x:19, y:58, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001704259", vigenciaInicio:"2024-12-18", vigenciaFin:"2026-12-18", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "SANTO DOMINGO":  { x:46, y:32, tipo:"AGENCIA", estado:"VIGENTE", proyectos:1, puestos:11, armas:1, guardias:21, cat:'active',
-            tramiteInfo: { tramite:"TRA-0002166502", vigenciaInicio:"2026-04-07", vigenciaFin:"2028-04-07", estadoTramite:"" },
-            supervisores: ["Juan Marcillo"],
-            proyectosList: [{ nombre:"IESS STD", guardias:21, armas:1, puestos:11, fin:"2026-11-06", supervisores:["Juan Marcillo"] }] },
-
-        "SUCUMBIOS":      { x:83, y:17, tipo:"N/A", estado:"SIN PRESENCIA", proyectos:0, puestos:0, armas:0, guardias:0, cat:'none',
-            tramiteInfo: { tramite:"TRA-0001318403", vigenciaInicio:"2023-07-18", vigenciaFin:"2025-07-18", estadoTramite:"" },
-            supervisores:[], proyectosList:[] },
-
-        "TUNGURAHUA":     { x:55, y:44, tipo:"AGENCIA", estado:"VIGENTE", proyectos:1, puestos:4, armas:4, guardias:5, cat:'active',
-            tramiteInfo: { tramite:"TRA-0001704124", vigenciaInicio:"2024-11-26", vigenciaFin:"2026-11-26", estadoTramite:"" },
-            supervisores: ["Wilson Chávez"],
-            proyectosList: [{ nombre:"PARROQUIAS URBANAS", guardias:5, armas:4, puestos:4, fin:"2026-06-05", supervisores:["Wilson Chávez"] }] },
-
-        "ZAMORA CHINCHIPE":{ x:48, y:88, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only',
-            tramiteInfo: { tramite:"TRA-0001704054", vigenciaInicio:"2024-11-26", vigenciaFin:"2026-11-26", estadoTramite:"" },
-            supervisores:[], proyectosList:[] }
+        // SIN PROYECTOS (con trámite registrado)
+        "BOLIVAR":          { x:44, y:53, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "CAÑAR":            { x:46, y:62, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "CARCHI":           { x:61, y:12, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "CHIMBORAZO":       { x:52, y:54, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "COTOPAXI":         { x:51, y:38, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "GALAPAGOS":        { x:7,  y:15, tipo:"N/A",     estado:"SIN REGISTRO",  proyectos:0, puestos:0, armas:0, guardias:0, cat:'none' },
+        "MORONA SANTIAGO":  { x:60, y:65, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "NAPO":             { x:65, y:37, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "ORELLANA":         { x:78, y:35, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "PASTAZA":          { x:72, y:51, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "SANTA ELENA":      { x:19, y:58, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "SUCUMBIOS":        { x:83, y:17, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+        "ZAMORA CHINCHIPE": { x:48, y:88, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' }
     };
 
     // =====================================================================
@@ -440,6 +272,223 @@
     // Solo se llena para provincias con proyectos activos.
     // Para ampliar a otras provincias, copiar la estructura de "EL ORO".
     // =====================================================================
+    const detalleProvincias = {
+        // ── PROVINCIAS CON PROYECTOS ACTIVOS ──────────────────────────────
+        "AZUAY": {
+            tramite:        "SOL-0002153858",
+            vigenciaInicio: null,
+            vigenciaFin:    null,
+            estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+            supervisores:   ["Freddy Carrera"],
+            proyectosList: [
+                { nombre: "COORDINACIÓN ZONAL 6", guardias: 5, armas: 0, puestos: 4, fin: "2026-09-30", supervisores: ["Freddy Carrera"] }
+            ]
+        },
+        "EL ORO": {
+            tramite:        "TRA-0002119371",
+            vigenciaInicio: "2026-03-05",
+            vigenciaFin:    "2028-03-05",
+            supervisores:   ["Raúl Illesca"],
+            proyectosList: [
+                { nombre: "MSP SANTA ROSA",  guardias: 9, armas: 2, puestos: 3, fin: "2026-06-30", supervisores: ["Raúl Illesca"] },
+                { nombre: "MERCADO MACHALA", guardias: 3, armas: 1, puestos: 2, fin: "2026-12-13", supervisores: ["Raúl Illesca"] }
+            ]
+        },
+        "ESMERALDAS": {
+            tramite:        "SOL-0002181487",
+            vigenciaInicio: null,
+            vigenciaFin:    null,
+            estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+            supervisores:   ["Johan Cuasaluzan"],
+            proyectosList: [
+                { nombre: "ESMERALDAS MIT", guardias: 27, armas: 0, puestos: 10, fin: "2027-01-16", supervisores: ["Johan Cuasaluzan"] }
+            ]
+        },
+        "GUAYAS": {
+            tramite:        "TRA-MATRIZ-GUAYAS",
+            vigenciaInicio: "2025-04-11",
+            vigenciaFin:    "2027-04-10",
+            supervisores:   ["Johanna Hernández", "Jorge Moya", "Gerardo Crispín", "Wilmer Flores"],
+            proyectosList: [
+                { nombre: "CNEL EP GUAYAQUIL/PLAYAS", guardias: 128, armas: 38, puestos: 58, fin: "2026-06-13", supervisores: ["Johanna Hernández", "Jorge Moya", "Gerardo Crispín"] },
+                { nombre: "IESS GUAYAS",              guardias: 59,  armas: 23, puestos: 24, fin: "2026-11-30", supervisores: ["Wilmer Flores"] },
+                { nombre: "MILAGRO EDU",              guardias: 2,   armas: 1,  puestos: 1,  fin: "2026-10-31" },
+                { nombre: "PEDRO CARBO EDU",          guardias: 3,   armas: 1,  puestos: 1,  fin: "2026-12-31" },
+                { nombre: "MSP SALITRE",              guardias: 6,   armas: 0,  puestos: 2,  fin: "2026-07-04" },
+                { nombre: "PREFECTURA VIP",           guardias: 2,   armas: 3,  puestos: 2,  fin: "2027-03-10" }
+            ]
+        },
+        "IMBABURA": {
+            tramite:        "TRA-0001703808",
+            vigenciaInicio: "2024-11-13",
+            vigenciaFin:    "2026-11-13",
+            supervisores:   [],
+            proyectosList: [
+                { nombre: "COORDINACIÓN ZONAL 1", guardias: 3, armas: 0, puestos: 1, fin: "2026-12-10" }
+            ]
+        },
+        "LOJA": {
+            tramite:        "TRA-0001690676",
+            vigenciaInicio: "2024-11-05",
+            vigenciaFin:    "2026-11-05",
+            supervisores:   [],
+            proyectosList: [
+                { nombre: "CELICA EDU", guardias: 3, armas: 0, puestos: 1, fin: "2026-12-31" }
+            ]
+        },
+        "LOS RIOS": {
+            tramite:        "SOL-0002184059",
+            vigenciaInicio: null,
+            vigenciaFin:    null,
+            estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+            supervisores:   ["Wilson Ramírez"],
+            proyectosList: [
+                { nombre: "MSP BABAHOYO 12H", guardias: 3, armas: 0, puestos: 2, fin: "2026-06-30", supervisores: ["Wilson Ramírez"] },
+                { nombre: "MSP BABAHOYO 8H",  guardias: 7, armas: 0, puestos: 7, fin: "2026-06-30", supervisores: ["Wilson Ramírez"] },
+                { nombre: "VINCES EDU",        guardias: 3, armas: 0, puestos: 1, fin: "2026-08-31" }
+            ]
+        },
+        "MANABI": {
+            tramite:        "SOL-0002177824",
+            vigenciaInicio: "2026-04-14",
+            vigenciaFin:    "2028-04-14",
+            supervisores:   ["Luis Zambrano", "Edisson Moreira"],
+            proyectosList: [
+                { nombre: "APM",             guardias: 42, armas: 8, puestos: 14, fin: "2026-12-19", supervisores: ["Luis Zambrano"] },
+                { nombre: "PATIO 300",       guardias: 3,  armas: 0, puestos: 1,  fin: "2027-01-09", supervisores: ["Luis Zambrano"] },
+                { nombre: "HOSP PORTOVIEJO", guardias: 7,  armas: 1, puestos: 6,  fin: "2027-01-28", supervisores: ["Luis Zambrano"] },
+                { nombre: "EL CARMEN EDU",   guardias: 50, armas: 0, puestos: 25, fin: "2026-07-12", supervisores: ["Edisson Moreira"] }
+            ]
+        },
+        "PICHINCHA": {
+            tramite:        "SOL-0002189038",
+            vigenciaInicio: null,
+            vigenciaFin:    null,
+            estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+            supervisores:   ["Milton Márquez", "Lenin Cerón", "Daniel Balero"],
+            proyectosList: [
+                { nombre: "MINISTERIO TRABAJO",              guardias: 2,  armas: 1,  puestos: 2,  fin: "2026-07-28", supervisores: ["Milton Márquez"] },
+                { nombre: "TUMBACO TABABELA",                guardias: 3,  armas: 1,  puestos: 1,  fin: "2026-12-31", supervisores: ["Milton Márquez"] },
+                { nombre: "MINISTERIO SALUD PÚBLICA MATRIZ", guardias: 15, armas: 5,  puestos: 5,  fin: "2026-12-09", supervisores: ["Milton Márquez"] },
+                { nombre: "DISTRITAL 17D03",                 guardias: 84, armas: 5,  puestos: 28, fin: "2026-06-03", supervisores: ["Lenin Cerón"] },
+                { nombre: "MINISTERIO DE GOBIERNO",          guardias: 4,  armas: 4,  puestos: 4,  fin: "2027-01-06", supervisores: ["Milton Márquez"] },
+                { nombre: "MERCADO MAYORISTA QUITO",         guardias: 45, armas: 18, puestos: 18, fin: "2027-04-06", supervisores: ["Daniel Balero"] }
+            ]
+        },
+        "SANTO DOMINGO": {
+            tramite:        "TRA-0002166502",
+            vigenciaInicio: "2026-04-07",
+            vigenciaFin:    "2028-04-07",
+            supervisores:   ["Juan Marcillo"],
+            proyectosList: [
+                { nombre: "IESS STD", guardias: 21, armas: 1, puestos: 11, fin: "2026-11-06", supervisores: ["Juan Marcillo"] }
+            ]
+        },
+        "TUNGURAHUA": {
+            tramite:        "TRA-0001704124",
+            vigenciaInicio: "2024-11-26",
+            vigenciaFin:    "2026-11-26",
+            supervisores:   ["Wilson Chávez"],
+            proyectosList: [
+                { nombre: "PARROQUIAS URBANAS", guardias: 5, armas: 4, puestos: 4, fin: "2026-06-05", supervisores: ["Wilson Chávez"] }
+            ]
+        },
+
+        // ── PROVINCIAS SIN PROYECTOS (solo trámite) ───────────────────────
+        "BOLIVAR": {
+            tramite:        "TRA-0001318517",
+            vigenciaInicio: "2023-08-04",
+            vigenciaFin:    "2025-08-04",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "CAÑAR": {
+            tramite:        "TRA-0001962141",
+            vigenciaInicio: "2025-06-01",
+            vigenciaFin:    "2027-09-01",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "CARCHI": {
+            tramite:        "TRA-0001691256",
+            vigenciaInicio: "2024-10-24",
+            vigenciaFin:    "2026-10-24",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "CHIMBORAZO": {
+            tramite:        "TRA-0001336444",
+            vigenciaInicio: "2023-08-14",
+            vigenciaFin:    "2025-08-14",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "COTOPAXI": {
+            tramite:        "TRA-0001694291",
+            vigenciaInicio: "2024-12-26",
+            vigenciaFin:    "2026-12-26",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "GALAPAGOS": {
+            tramite:        null,
+            vigenciaInicio: null,
+            vigenciaFin:    null,
+            estadoTramite:  "Sin registro de trámite",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "MORONA SANTIAGO": {
+            tramite:        "TRA-0001704006",
+            vigenciaInicio: "2024-11-26",
+            vigenciaFin:    "2026-11-26",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "NAPO": {
+            tramite:        "TRA-0001704249",
+            vigenciaInicio: "2024-11-26",
+            vigenciaFin:    "2026-11-26",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "ORELLANA": {
+            tramite:        "TRA-0001319401",
+            vigenciaInicio: "2023-07-18",
+            vigenciaFin:    "2025-07-18",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "PASTAZA": {
+            tramite:        "TRA-0001309245",
+            vigenciaInicio: "2023-11-09",
+            vigenciaFin:    "2025-11-09",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "SANTA ELENA": {
+            tramite:        "TRA-0001704259",
+            vigenciaInicio: "2024-12-18",
+            vigenciaFin:    "2026-12-18",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "SUCUMBIOS": {
+            tramite:        "TRA-0001318403",
+            vigenciaInicio: "2023-07-18",
+            vigenciaFin:    "2025-07-18",
+            supervisores:   [],
+            proyectosList:  []
+        },
+        "ZAMORA CHINCHIPE": {
+            tramite:        "TRA-0001704054",
+            vigenciaInicio: "2024-11-26",
+            vigenciaFin:    "2026-11-26",
+            supervisores:   [],
+            proyectosList:  []
+        }
+    };
+
     // =====================================================================
     // UTILIDADES DE FECHA
     // =====================================================================
@@ -487,6 +536,8 @@
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
         }
+
+        // ── Trámite ──
         const enTramite      = !detalle.vigenciaFin || !detalle.vigenciaInicio;
         const sinRegistro    = !detalle.tramite;
         const diasTramite    = enTramite ? null : diasRestantes(detalle.vigenciaFin);
@@ -733,7 +784,7 @@
 
     function hideTooltip() { tooltip.style.display = 'none'; }
 
-    window.onload = cargarDatos;
+    window.onload = init;
     </script>
 </body>
 </html>

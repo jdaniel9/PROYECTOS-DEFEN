@@ -258,7 +258,7 @@
     async function cargarDatos() {
         mostrarCargando(true);
         try {
-            const res  = await fetch(APPS_SCRIPT_URL);
+            const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
             const json = await res.json();
             procesarDatosAPI(json);
         } catch (e) {

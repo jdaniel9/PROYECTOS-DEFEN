@@ -233,11 +233,92 @@
 
     <div id="tooltip" class="tooltip"></div>
 
+    <!-- Loading overlay -->
+    <div id="loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.75);z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:14px;backdrop-filter:blur(4px);">
+        <div style="width:44px;height:44px;border:4px solid rgba(255,255,255,0.15);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        <p style="color:white;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">Cargando datos desde Google Sheets…</p>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+
     <script>
     // =====================================================================
-    // DATOS MAESTROS
+    // ► CONFIGURACIÓN — pega aquí tu URL de Apps Script
     // =====================================================================
-    const data = {
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzsQ-GMfOMFIq9T13cjrFY7nCtEa-YGVA1R6-aF2rgKkTOWo-TnP9mMGZlivjJKGS8/exec";
+
+    // =====================================================================
+    // ESTADO GLOBAL
+    // =====================================================================
+    let data              = {};
+    let detalleProvincias = {};
+
+    // =====================================================================
+    // CARGA DINÁMICA DESDE GOOGLE SHEETS
+    // Si la URL no está configurada o falla, usa los datos locales de respaldo
+    // =====================================================================
+    async function cargarDatos() {
+        mostrarCargando(true);
+        let cargadoDesdeAPI = false;
+
+        if (APPS_SCRIPT_URL !== "PEGA_AQUI_TU_URL") {
+            try {
+                const res  = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
+                const json = await res.json();
+                procesarDatosAPI(json);
+                cargadoDesdeAPI = true;
+                console.log("✅ Datos cargados desde Google Sheets");
+            } catch (e) {
+                console.warn("⚠️ No se pudo conectar a la API, usando datos locales:", e.message);
+            }
+        }
+
+        if (!cargadoDesdeAPI) {
+            data              = DATOS_LOCALES_data;
+            detalleProvincias = DATOS_LOCALES_detalle;
+        }
+
+        mostrarCargando(false);
+        init();
+    }
+
+    function mostrarCargando(activo) {
+        const el = document.getElementById('loading-overlay');
+        if (el) el.style.display = activo ? 'flex' : 'none';
+    }
+
+    // Procesa la respuesta de la API y llena data + detalleProvincias
+    function procesarDatosAPI(json) {
+        data              = {};
+        detalleProvincias = {};
+        Object.keys(json).forEach(nombre => {
+            const p = json[nombre];
+            data[nombre] = {
+                x:         Number(p.x)         || 0,
+                y:         Number(p.y)         || 0,
+                tipo:      p.tipo      || '',
+                estado:    p.estado    || '',
+                cat:       p.cat       || 'none',
+                guardias:  Number(p.guardias)  || 0,
+                armas:     Number(p.armas)     || 0,
+                puestos:   Number(p.puestos)   || 0,
+                proyectos: Number(p.proyectos) || 0
+            };
+            const ti = p.tramiteInfo || {};
+            detalleProvincias[nombre] = {
+                tramite:        ti.tramite        || null,
+                vigenciaInicio: ti.vigenciaInicio || null,
+                vigenciaFin:    ti.vigenciaFin    || null,
+                estadoTramite:  ti.estadoTramite  || null,
+                supervisores:   Array.isArray(p.supervisores)  ? p.supervisores  : [],
+                proyectosList:  Array.isArray(p.proyectosList) ? p.proyectosList : []
+            };
+        });
+    }
+
+    // =====================================================================
+    // DATOS LOCALES DE RESPALDO (se usan mientras no hay API configurada)
+    // =====================================================================
+    const DATOS_LOCALES_data = {
         // ACTIVAS CON PROYECTOS
         "AZUAY":          { x:47, y:67, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:1,  puestos:4,   armas:0,  guardias:5,   cat:'active' },
         "EL ORO":         { x:36, y:73, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:2,  puestos:5,   armas:3,  guardias:12,  cat:'active' },
@@ -267,12 +348,7 @@
         "ZAMORA CHINCHIPE": { x:48, y:88, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' }
     };
 
-    // =====================================================================
-    // DATOS DE DETALLE POR PROVINCIA
-    // Solo se llena para provincias con proyectos activos.
-    // Para ampliar a otras provincias, copiar la estructura de "EL ORO".
-    // =====================================================================
-    const detalleProvincias = {
+    const DATOS_LOCALES_detalle = {
         // ── PROVINCIAS CON PROYECTOS ACTIVOS ──────────────────────────────
         "AZUAY": {
             tramite:        "SOL-0002153858",
@@ -645,27 +721,41 @@
     const listContainer = document.getElementById('province-list');
 
     function init() {
+        // Limpiar marcadores y lista anteriores (por si se recarga desde API)
+        document.getElementById('markers-layer').innerHTML  = '';
+        document.getElementById('province-list').innerHTML  = '';
+
+        // Calcular totales sumando desde proyectosList (fuente de verdad)
         let totals = { G:0, A:0, Pu:0, Pr:0, Prov:0 };
         Object.keys(data).sort().forEach(name => {
-            const info = data[name];
+            const info    = data[name];
+            const detalle = detalleProvincias[name];
             if (info.proyectos > 0) {
-                totals.G  += info.guardias;
-                totals.A  += info.armas;
-                totals.Pu += info.puestos;
-                totals.Pr += info.proyectos;
+                if (detalle && detalle.proyectosList && detalle.proyectosList.length > 0) {
+                    detalle.proyectosList.forEach(p => {
+                        totals.G  += Number(p.guardias) || 0;
+                        totals.A  += Number(p.armas)    || 0;
+                        totals.Pu += Number(p.puestos)  || 0;
+                    });
+                } else {
+                    totals.G  += info.guardias;
+                    totals.A  += info.armas;
+                    totals.Pu += info.puestos;
+                }
+                totals.Pr   += info.proyectos;
                 totals.Prov++;
             }
             createMarker(name, info);
             createListItem(name, info);
         });
 
-        document.getElementById('total-guardias').innerText  = totals.G.toLocaleString();
-        document.getElementById('total-armas').innerText     = totals.A;
-        document.getElementById('total-puestos').innerText   = totals.Pu;
-        document.getElementById('total-proyectos').innerText = totals.Pr;
-        document.getElementById('total-provincias').innerText= totals.Prov;
-        if (document.getElementById('armas-operativas-tbl'))
-            document.getElementById('armas-operativas-tbl').innerText = totals.A;
+        document.getElementById('total-guardias').innerText   = totals.G.toLocaleString();
+        document.getElementById('total-armas').innerText      = totals.A;
+        document.getElementById('total-puestos').innerText    = totals.Pu;
+        document.getElementById('total-proyectos').innerText  = totals.Pr;
+        document.getElementById('total-provincias').innerText = totals.Prov;
+        const armTbl = document.getElementById('armas-operativas-tbl');
+        if (armTbl) armTbl.innerText = totals.A;
     }
 
     function markerColor(info) {
@@ -784,7 +874,7 @@
 
     function hideTooltip() { tooltip.style.display = 'none'; }
 
-    window.onload = init;
+    window.onload = cargarDatos;
     </script>
 </body>
 </html>

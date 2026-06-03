@@ -214,15 +214,19 @@
                         </div>
                         <div class="flex justify-between items-center bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-200">
                             <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Rastrillo</span>
-                            <span class="font-black text-slate-700 text-base">289</span>
+                            <span class="font-black text-slate-700 text-base" id="armas-rastrillo">—</span>
                         </div>
                         <div class="flex justify-between items-center bg-red-50 px-3 py-2.5 rounded-xl border border-red-100">
                             <span class="text-[11px] font-bold text-red-700 uppercase tracking-wide">Pérdida/Robada</span>
-                            <span class="font-black text-red-600 text-base">1</span>
+                            <span class="font-black text-red-600 text-base" id="armas-perdida">—</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-orange-50 px-3 py-2.5 rounded-xl border border-orange-100">
+                            <span class="text-[11px] font-bold text-orange-700 uppercase tracking-wide">Confiscada COSP/CCFF</span>
+                            <span class="font-black text-orange-600 text-base" id="armas-confiscada">—</span>
                         </div>
                         <div class="flex justify-between items-center bg-slate-900 px-4 py-3 rounded-xl mt-1">
                             <span class="text-[11px] font-black text-white uppercase tracking-wider">Global</span>
-                            <span class="font-black text-white text-lg">414</span>
+                            <span class="font-black text-white text-lg" id="armas-global">—</span>
                         </div>
                     </div>
                 </div>
@@ -235,9 +239,9 @@
 
     <!-- Loading overlay -->
     <div id="loading-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.75);z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:14px;backdrop-filter:blur(4px);">
-        <div style="width:44px;height:44px;border:4px solid rgba(255,255,255,0.15);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        <p style="color:white;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;letter-spacing:0.02em;">Cargando datos desde Google Sheets…</p>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        <div style="width:44px;height:44px;border:4px solid rgba(255,255,255,0.15);border-top-color:white;border-radius:50%;animation:spin2 0.8s linear infinite;"></div>
+        <p style="color:white;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;">Cargando datos desde Google Sheets…</p>
+        <style>@keyframes spin2{to{transform:rotate(360deg)}}</style>
     </div>
 
     <script>
@@ -251,10 +255,10 @@
     // =====================================================================
     let data              = {};
     let detalleProvincias = {};
+    let armamento         = { rastrillo: null, perdida: null, confiscada: null, global: null };
 
     // =====================================================================
     // CARGA DINÁMICA DESDE GOOGLE SHEETS
-    // Si la URL no está configurada o falla, usa los datos locales de respaldo
     // =====================================================================
     async function cargarDatos() {
         mostrarCargando(true);
@@ -268,13 +272,14 @@
                 cargadoDesdeAPI = true;
                 console.log("✅ Datos cargados desde Google Sheets");
             } catch (e) {
-                console.warn("⚠️ No se pudo conectar a la API, usando datos locales:", e.message);
+                console.warn("⚠️ Usando datos locales:", e.message);
             }
         }
 
         if (!cargadoDesdeAPI) {
             data              = DATOS_LOCALES_data;
             detalleProvincias = DATOS_LOCALES_detalle;
+            armamento         = { rastrillo: 289, perdida: 1, confiscada: 1, global: 414 };
         }
 
         mostrarCargando(false);
@@ -286,10 +291,23 @@
         if (el) el.style.display = activo ? 'flex' : 'none';
     }
 
-    // Procesa la respuesta de la API y llena data + detalleProvincias
+    // Procesa JSON de la API → llena data, detalleProvincias y armamento
     function procesarDatosAPI(json) {
         data              = {};
         detalleProvincias = {};
+
+        // Leer armamento si viene en la respuesta
+        if (json.__armamento__) {
+            const a = json.__armamento__;
+            armamento = {
+                rastrillo:   Number(a.rastrillo)   || 0,
+                perdida:     Number(a.perdida)      || 0,
+                confiscada:  Number(a.confiscada)   || 0,
+                global:      Number(a.global)       || 0
+            };
+            delete json.__armamento__;
+        }
+
         Object.keys(json).forEach(nombre => {
             const p = json[nombre];
             data[nombre] = {
@@ -316,7 +334,7 @@
     }
 
     // =====================================================================
-    // DATOS LOCALES DE RESPALDO (se usan mientras no hay API configurada)
+    // DATOS LOCALES DE RESPALDO
     // =====================================================================
     const DATOS_LOCALES_data = {
         // ACTIVAS CON PROYECTOS
@@ -721,11 +739,10 @@
     const listContainer = document.getElementById('province-list');
 
     function init() {
-        // Limpiar marcadores y lista anteriores (por si se recarga desde API)
-        document.getElementById('markers-layer').innerHTML  = '';
-        document.getElementById('province-list').innerHTML  = '';
+        document.getElementById('markers-layer').innerHTML = '';
+        document.getElementById('province-list').innerHTML = '';
 
-        // Calcular totales sumando desde proyectosList (fuente de verdad)
+        // Totales calculados desde proyectosList (fuente de verdad)
         let totals = { G:0, A:0, Pu:0, Pr:0, Prov:0 };
         Object.keys(data).sort().forEach(name => {
             const info    = data[name];
@@ -749,13 +766,26 @@
             createListItem(name, info);
         });
 
+        // Resumen ejecutivo
         document.getElementById('total-guardias').innerText   = totals.G.toLocaleString();
         document.getElementById('total-armas').innerText      = totals.A;
         document.getElementById('total-puestos').innerText    = totals.Pu;
         document.getElementById('total-proyectos').innerText  = totals.Pr;
         document.getElementById('total-provincias').innerText = totals.Prov;
-        const armTbl = document.getElementById('armas-operativas-tbl');
-        if (armTbl) armTbl.innerText = totals.A;
+
+        // Resumen armamento (desde la hoja "armamento" vía API, o valores locales)
+        const enCampo = totals.A;
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val !== null ? val : '—'; };
+        set('armas-operativas-tbl', enCampo);
+        set('armas-rastrillo',   armamento.rastrillo);
+        set('armas-perdida',     armamento.perdida);
+        set('armas-confiscada',  armamento.confiscada);
+        // Global = todas las categorías sumadas
+        const globalCalc = enCampo
+            + (armamento.rastrillo  || 0)
+            + (armamento.perdida    || 0)
+            + (armamento.confiscada || 0);
+        set('armas-global', armamento.global !== null ? armamento.global : globalCalc);
     }
 
     function markerColor(info) {

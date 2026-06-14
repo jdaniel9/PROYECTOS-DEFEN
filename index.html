@@ -1177,104 +1177,157 @@
         setTimeout(() => provMap.invalidateSize(), 120);
     }
 
+    // ── Estado del toggle "ver todos" ────────────────────────────
+    let mostrandoTodos    = false;
+    let provinciaActual   = null;
+    let puestosActuales   = [];
+
     // Seleccionar proyecto → mostrar puestos
     function seleccionarProyecto(provincia, proyecto, cardEl) {
-        // Highlight card
         document.querySelectorAll('.proj-card').forEach(c => c.classList.remove('active'));
         cardEl.classList.add('active');
-        proyectoActivo = proyecto.nombre;
+        proyectoActivo  = proyecto.nombre;
+        provinciaActual = provincia;
+        mostrandoTodos  = false;
 
-        // Limpiar marcadores anteriores
         limpiarMarcadores();
 
         const seccion = document.getElementById('prov-puestos-section');
         const lista   = document.getElementById('prov-puestos-lista');
         const titulo  = document.getElementById('prov-puestos-titulo');
-        titulo.textContent  = proyecto.nombre;
+        titulo.textContent    = proyecto.nombre;
         seccion.style.display = 'block';
         lista.innerHTML       = '';
 
-        // Puestos del proyecto (desde puestosData)
-        const puestos = (puestosData[provincia] || {})[proyecto.nombre] || [];
+        puestosActuales = (puestosData[provincia] || {})[proyecto.nombre] || [];
 
-        if (puestos.length === 0) {
+        if (puestosActuales.length === 0) {
             lista.innerHTML = `<p class="text-[10px] text-slate-400 italic px-1">Sin puestos con coordenadas registradas aún.<br>Agrégalos en la pestaña <strong>puestos</strong> del Excel.</p>`;
+            actualizarBotonTodos();
             return;
         }
 
-        puestos.forEach((puesto, i) => {
-            const card = document.createElement('div');
-            card.className = 'puesto-card';
-            card.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <span class="w-5 h-5 rounded-full flex-shrink-0 ${puesto.armado ? 'bg-red-500' : 'bg-green-500'}" style="min-width:20px;"></span>
-                    <div>
-                        <p class="text-[11px] font-black text-slate-800 leading-tight">${puesto.nombre}</p>
-                        <p class="text-[9px] text-slate-400 font-medium">👮 ${puesto.guardia} · ${puesto.tipo}</p>
-                    </div>
-                </div>`;
-            card.onclick = () => seleccionarPuesto(puesto, card);
-            lista.appendChild(card);
+        puestosActuales.forEach((puesto, i) => {
+            lista.appendChild(crearTarjetaPuesto(puesto, i));
         });
 
-        // Ajustar mapa si hay puestos
-        if (puestos.length > 0) {
-            const bounds = L.latLngBounds(puestos.map(p => [p.lat, p.lng]));
-            provMap.fitBounds(bounds, { padding: [60, 60] });
-        }
+        // Fitear mapa para mostrar todos los puestos
+        const bounds = L.latLngBounds(puestosActuales.map(p => [p.lat, p.lng]));
+        provMap.fitBounds(bounds, { padding: [60, 60] });
+        actualizarBotonTodos();
     }
 
-    // Seleccionar puesto → volar al marcador y abrir popup
-    function seleccionarPuesto(puesto, cardEl) {
+    // Crear tarjeta de puesto con guardias múltiples
+    function crearTarjetaPuesto(puesto, idx) {
+        const card = document.createElement('div');
+        card.className      = 'puesto-card';
+        card.dataset.idx    = idx;
+
+        // Guardias: puede ser string único o array separado por comas
+        const guardias = Array.isArray(puesto.guardias)
+            ? puesto.guardias
+            : (puesto.guardia || '').split(',').map(g => g.trim()).filter(Boolean);
+
+        const guardiasHTML = guardias.length > 1
+            ? `<div class="flex flex-col gap-0.5 mt-1">
+                ${guardias.map((g,i) => `
+                    <span class="text-[9px] text-slate-500 font-medium">
+                        👮 <span class="font-bold text-slate-700">${g}</span>
+                        ${i === 0 ? '<span class="text-[8px] bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">Turno actual</span>' : ''}
+                    </span>`).join('')}
+               </div>`
+            : `<p class="text-[9px] text-slate-400 font-medium">👮 ${guardias[0] || '—'} · ${puesto.tipo}</p>`;
+
+        card.innerHTML = `
+            <div class="flex items-start gap-2">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${puesto.armado ? 'bg-red-500' : 'bg-green-500'}" style="min-width:10px;"></span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-[11px] font-black text-slate-800 leading-tight">${puesto.nombre}</p>
+                    ${guardiasHTML}
+                </div>
+            </div>`;
+        card.onclick = () => seleccionarPuesto(puesto, card, idx);
+        return card;
+    }
+
+    // Seleccionar puesto individual → volar y mostrar popup
+    function seleccionarPuesto(puesto, cardEl, idx) {
         document.querySelectorAll('.puesto-card').forEach(c => c.classList.remove('active'));
-        cardEl.classList.add('active');
+        if (cardEl) cardEl.classList.add('active');
 
-        // Limpiar marcadores anteriores
-        limpiarMarcadores();
+        // Si estaba en modo "todos", solo resaltar ese pin sin limpiar los demás
+        if (!mostrandoTodos) {
+            limpiarMarcadores();
+            colocarMarcador(puesto, true);
+        } else {
+            // Resaltar el marcador seleccionado y atenuar los demás
+            marcadoresMapa.forEach((m, i) => {
+                const el = m.getElement();
+                if (el) el.style.opacity = (i === idx) ? '1' : '0.35';
+            });
+            if (marcadoresMapa[idx]) {
+                marcadoresMapa[idx].openPopup();
+                provMap.flyTo([puesto.lat, puesto.lng], 16, { duration: 1 });
+            }
+            return;
+        }
 
-        // Crear icono personalizado (pin)
+        provMap.flyTo([puesto.lat, puesto.lng], 16, { duration: 1.2 });
+    }
+
+    // Colocar un marcador en el mapa y devolver la instancia
+    function colocarMarcador(puesto, abrirPopup) {
+        const guardias = Array.isArray(puesto.guardias)
+            ? puesto.guardias
+            : (puesto.guardia || '').split(',').map(g => g.trim()).filter(Boolean);
+
         const iconHtml = `
             <div style="
                 width:34px;height:34px;
                 background:${puesto.armado ? '#dc2626' : '#16a34a'};
-                border:3px solid white;
-                border-radius:50% 50% 50% 0;
+                border:3px solid white;border-radius:50% 50% 50% 0;
                 transform:rotate(-45deg);
                 box-shadow:0 4px 14px rgba(0,0,0,0.3);
-                display:flex;align-items:center;justify-content:center;
-            ">
+                display:flex;align-items:center;justify-content:center;transition:opacity 0.2s;">
                 <span style="transform:rotate(45deg);font-size:13px;">${puesto.armado ? '🔫' : '👮'}</span>
             </div>`;
 
-        const icon = L.divIcon({
-            html:        iconHtml,
-            className:   '',
-            iconSize:    [34, 34],
-            iconAnchor:  [17, 34],
-            popupAnchor: [0, -36]
-        });
-
+        const icon = L.divIcon({ html: iconHtml, className:'', iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-36] });
         const marker = L.marker([puesto.lat, puesto.lng], { icon }).addTo(provMap);
 
-        // Contenido del popup
-        const popupContent = `
+        // Guardias en el popup
+        const guardiasPopup = guardias.length > 1
+            ? guardias.map((g,i) => `
+                <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                    <span style="font-size:10px;">👮</span>
+                    <span style="font-size:11px;font-weight:800;color:#1e293b;">${g}</span>
+                    ${i===0 ? '<span style="font-size:8px;background:#dbeafe;color:#1d4ed8;font-weight:700;padding:1px 5px;border-radius:4px;">Turno actual</span>' : ''}
+                </div>`).join('')
+            : `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
+                    <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Guardia</span>
+                    <span style="font-size:11px;font-weight:800;color:#1e293b;">👮 ${guardias[0] || '—'}</span>
+               </div>`;
+
+        const popup = `
             <div style="font-family:'DM Sans',sans-serif;min-width:240px;max-width:300px;">
                 <div style="background:${puesto.armado ? '#dc2626' : '#16a34a'};padding:10px 14px;">
-                    <p style="color:white;font-size:11px;font-weight:900;margin:0;letter-spacing:0.05em;">${puesto.nombre}</p>
+                    <p style="color:white;font-size:11px;font-weight:900;margin:0;">${puesto.nombre}</p>
                     <p style="color:rgba(255,255,255,0.75);font-size:9px;font-weight:700;margin:2px 0 0;text-transform:uppercase;">${puesto.tipo} · ${puesto.turno}</p>
                 </div>
-                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:7px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
-                        <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Guardia</span>
-                        <span style="font-size:11px;font-weight:800;color:#1e293b;">👮 ${puesto.guardia}</span>
-                    </div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px;">
+                    ${guardias.length > 1
+                        ? `<div style="border-bottom:1px solid #f1f5f9;padding-bottom:8px;">
+                               <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Guardia(s) — ${guardias.length} agente(s)</p>
+                               ${guardiasPopup}
+                           </div>`
+                        : guardiasPopup}
                     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
                         <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Armado</span>
-                        <span style="font-size:11px;font-weight:800;color:${puesto.armado ? '#dc2626' : '#16a34a'};">${puesto.armado ? '✅ SÍ · ' + (puesto.arma || '') : '❌ NO'}</span>
+                        <span style="font-size:11px;font-weight:800;color:${puesto.armado?'#dc2626':'#16a34a'};">${puesto.armado ? '✅ SÍ · '+(puesto.arma||'') : '❌ NO'}</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
                         <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Radio</span>
-                        <span style="font-size:11px;font-weight:800;color:#1e293b;">${puesto.radio ? '📻 ' + (puesto.radio_info || 'Sí') : '— No'}</span>
+                        <span style="font-size:11px;font-weight:800;color:#1e293b;">${puesto.radio ? '📻 '+(puesto.radio_info||'Sí') : '— No'}</span>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Días</span>
@@ -1284,11 +1337,44 @@
                 </div>
             </div>`;
 
-        marker.bindPopup(popupContent, { maxWidth: 300, minWidth: 240 }).openPopup();
+        marker.bindPopup(popup, { maxWidth:300, minWidth:240 });
+        if (abrirPopup) marker.openPopup();
         marcadoresMapa.push(marker);
+        return marker;
+    }
 
-        // Volar suavemente al marcador
-        provMap.flyTo([puesto.lat, puesto.lng], 16, { duration: 1.2 });
+    // Toggle: mostrar / ocultar todos los puestos
+    function toggleTodosPuestos() {
+        if (mostrandoTodos) {
+            // Ocultar todos
+            limpiarMarcadores();
+            mostrandoTodos = false;
+            document.querySelectorAll('.puesto-card').forEach(c => c.classList.remove('active'));
+        } else {
+            // Mostrar todos
+            limpiarMarcadores();
+            puestosActuales.forEach((puesto, i) => colocarMarcador(puesto, false));
+            mostrandoTodos = true;
+            // Fitear mapa para ver todos
+            if (puestosActuales.length > 0) {
+                const bounds = L.latLngBounds(puestosActuales.map(p => [p.lat, p.lng]));
+                provMap.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+        actualizarBotonTodos();
+    }
+
+    function actualizarBotonTodos() {
+        const btn = document.getElementById('btn-todos-puestos');
+        if (!btn) return;
+        const hay = puestosActuales.length > 0;
+        btn.style.display = hay ? 'flex' : 'none';
+        btn.innerHTML = mostrandoTodos
+            ? `<span>🙈</span><span>Ocultar todos</span>`
+            : `<span>🗺️</span><span>Ver todos (${puestosActuales.length})</span>`;
+        btn.className = mostrandoTodos
+            ? 'flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-slate-200 hover:bg-slate-300 text-slate-700'
+            : 'flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-blue-600 hover:bg-blue-700 text-white';
     }
 
     function limpiarMarcadores() {
@@ -1349,9 +1435,15 @@
                     <!-- Puestos del proyecto seleccionado -->
                     <div id="prov-puestos-section" style="display:none;" class="p-4">
                         <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Puestos</h3>
-                        <p class="text-[9px] text-blue-600 font-bold mb-3" id="prov-puestos-titulo"></p>
+                        <p class="text-[9px] text-blue-600 font-bold mb-2" id="prov-puestos-titulo"></p>
+                        <!-- Botón Ver todos -->
+                        <button id="btn-todos-puestos" style="display:none;"
+                                onclick="toggleTodosPuestos()"
+                                class="flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-blue-600 hover:bg-blue-700 text-white mb-3">
+                            🗺️ Ver todos
+                        </button>
                         <div id="prov-puestos-lista" class="flex flex-col gap-2"></div>
-                        <p class="text-[9px] text-slate-400 mt-3 italic">Haz clic en un puesto para ver su ubicación en el mapa</p>
+                        <p class="text-[9px] text-slate-400 mt-3 italic">Haz clic en un puesto para ver su ubicación</p>
                     </div>
                 </div>
 

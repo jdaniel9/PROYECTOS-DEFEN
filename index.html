@@ -124,72 +124,140 @@
             z-index: 10000;
             background: rgba(15,23,42,0.65);
             backdrop-filter: blur(6px);
-            animation: fadeInModal 0.22s ease-out;
+            align-items: flex-end;   /* móvil: sube desde abajo */
+            justify-content: center;
         }
         #prov-modal.open { display: flex; }
-        @keyframes fadeInModal {
-            from { opacity:0; } to { opacity:1; }
-        }
+
         #prov-modal-inner {
             display: flex;
             flex-direction: column;
-            width: 96vw;
+            width: 100%;
             max-width: 1400px;
-            height: 90vh;
-            margin: auto;
+            height: 100dvh;          /* móvil: pantalla completa */
             background: #f1f5f9;
-            border-radius: 1.5rem;
             overflow: hidden;
-            box-shadow: 0 32px 80px rgba(0,0,0,0.45);
-            animation: slideUpModal 0.25s cubic-bezier(0.16,1,0.3,1);
+            animation: slideUpModal 0.28s cubic-bezier(0.16,1,0.3,1);
         }
         @keyframes slideUpModal {
-            from { transform: translateY(32px); opacity:0; }
+            from { transform: translateY(40px); opacity:0; }
             to   { transform: translateY(0);    opacity:1; }
         }
+
+        /* Desktop ≥ 768px: ventana centrada */
+        @media (min-width: 768px) {
+            #prov-modal { align-items: center; }
+            #prov-modal-inner {
+                width: 96vw;
+                height: 92vh;
+                border-radius: 1.5rem;
+                box-shadow: 0 32px 80px rgba(0,0,0,0.45);
+            }
+        }
+
+        /* Body: mapa arriba + sidebar abajo en móvil  */
         #prov-modal-body {
-            display: grid;
-            grid-template-columns: 320px 1fr;
+            display: flex;
+            flex-direction: column-reverse;   /* móvil: sidebar abajo, mapa arriba */
             flex: 1;
             overflow: hidden;
+            min-height: 0;
         }
-        /* Panel izquierdo */
+        @media (min-width: 768px) {
+            #prov-modal-body {
+                flex-direction: row;           /* desktop: sidebar izq, mapa der */
+            }
+        }
+
+        /* ── Sidebar ──────────────────────────────────────────── */
         #prov-sidebar {
             background: white;
-            border-right: 1px solid #e2e8f0;
+            border-top: 1px solid #e2e8f0;
             overflow-y: auto;
+            flex-shrink: 0;
+            /* Móvil: altura fija, se puede scroll */
+            height: 42vh;
             display: flex;
             flex-direction: column;
         }
-        /* Mapa Leaflet */
-        #prov-map {
-            width: 100%;
-            height: 100%;
-            z-index: 1;
+        @media (min-width: 768px) {
+            #prov-sidebar {
+                width: 300px;
+                height: 100%;
+                border-top: none;
+                border-right: 1px solid #e2e8f0;
+            }
         }
-        /* Tarjeta de proyecto en sidebar */
-        .proj-card {
+        @media (min-width: 1024px) {
+            #prov-sidebar { width: 320px; }
+        }
+
+        /* ── Mapa ─────────────────────────────────────────────── */
+        #prov-map {
+            flex: 1;
+            min-height: 0;
+            z-index: 1;
+            /* Móvil: el mapa ocupa la mitad superior */
+            height: 58vh;
+        }
+        @media (min-width: 768px) {
+            #prov-map { height: 100%; }
+        }
+
+        /* ── Acordeón de proyectos ────────────────────────────── */
+        .acord-proyecto {
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            padding: 10px 12px;
-            cursor: pointer;
-            transition: all 0.18s;
-            background: #f8fafc;
+            overflow: hidden;
+            transition: box-shadow 0.18s;
         }
-        .proj-card:hover  { background: #eff6ff; border-color: #bfdbfe; }
-        .proj-card.active { background: #dbeafe; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
-        /* Tarjeta de puesto */
+        .acord-proyecto:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+
+        .acord-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 12px;
+            cursor: pointer;
+            background: #f8fafc;
+            user-select: none;
+            gap: 8px;
+            transition: background 0.15s;
+        }
+        .acord-header:hover   { background: #eff6ff; }
+        .acord-header.active  { background: #dbeafe; border-bottom: 1px solid #bfdbfe; }
+
+        .acord-chevron {
+            font-size: 10px;
+            color: #94a3b8;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .acord-header.active .acord-chevron { transform: rotate(180deg); color: #3b82f6; }
+
+        .acord-body {
+            display: none;
+            padding: 10px;
+            background: white;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .acord-body.open { display: flex; }
+
+        /* ── Tarjeta de puesto ────────────────────────────────── */
         .puesto-card {
             border: 1px solid #e2e8f0;
             border-radius: 10px;
-            padding: 9px 11px;
+            padding: 8px 10px;
             cursor: pointer;
-            transition: all 0.18s;
+            transition: all 0.15s;
             background: white;
         }
         .puesto-card:hover  { background: #f0fdf4; border-color: #86efac; }
-        .puesto-card.active { background: #dcfce7; border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.2); }
-        /* Popup Leaflet personalizado */
+        .puesto-card.active { background: #dcfce7; border-color: #16a34a;
+                              box-shadow: 0 0 0 2px rgba(22,163,74,0.2); }
+
+        /* Popup Leaflet */
         .leaflet-popup-content-wrapper {
             border-radius: 14px !important;
             box-shadow: 0 12px 32px rgba(0,0,0,0.22) !important;
@@ -199,18 +267,6 @@
         }
         .leaflet-popup-content { margin: 0 !important; }
         .leaflet-popup-tip-container { display:none; }
-        /* Icono marcador personalizado */
-        .marker-puesto {
-            width: 36px; height: 36px;
-            background: #16a34a;
-            border: 3px solid white;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            box-shadow: 0 4px 14px rgba(0,0,0,0.3);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .marker-puesto.armado { background: #dc2626; }
-        .marker-puesto.selected { background: #2563eb; transform: rotate(-45deg) scale(1.2); }
     </style>
 </head>
 <body class="min-h-screen text-slate-900">
@@ -1090,10 +1146,13 @@
     // =====================================================================
     // SISTEMA DE VISTA DE PROVINCIA (Leaflet)
     // =====================================================================
-    let provMap        = null;   // instancia Leaflet
-    let marcadoresMapa = [];     // marcadores activos en el mapa
+    let provMap        = null;
+    let marcadoresMapa = [];
     let proyectoActivo = null;
     let puestoActivo   = null;
+    let mostrandoTodos  = false;
+    let provinciaActual = null;
+    let puestosActuales = [];
 
     // Centros aproximados de cada provincia para el zoom inicial
     const provinciaCentros = {
@@ -1129,93 +1188,132 @@
         modal.classList.add('open');
         document.getElementById('prov-nombre').textContent = nombre;
 
-        // Inicializar mapa Leaflet (solo la primera vez por provincia)
         if (provMap) { provMap.remove(); provMap = null; }
-
         const centro = provinciaCentros[nombre] || [-1.8312, -78.1834, 9];
         provMap = L.map('prov-map', { zoomControl: true }).setView([centro[0], centro[1]], centro[2]);
-
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 19
+            attribution: '© OpenStreetMap', maxZoom: 19
         }).addTo(provMap);
 
-        // Renderizar lista de proyectos en el sidebar
         const detalle  = detalleProvincias[nombre];
         const sidebar  = document.getElementById('prov-proyectos');
         sidebar.innerHTML = '';
-        proyectoActivo = null;
-        puestoActivo   = null;
-        document.getElementById('prov-puestos-section').style.display = 'none';
-
-        if (!detalle || !detalle.proyectosList || detalle.proyectosList.length === 0) {
-            sidebar.innerHTML = '<p class="text-xs text-slate-400 px-2">Esta provincia no tiene proyectos registrados.</p>';
-            return;
-        }
-
-        detalle.proyectosList.forEach((p, idx) => {
-            const card = document.createElement('div');
-            card.className   = 'proj-card';
-            card.dataset.idx = idx;
-            const dias  = diasRestantes(p.fin);
-            const al    = alertaProyecto(dias);
-            card.innerHTML = `
-                <div class="flex items-start justify-between gap-2 mb-1">
-                    <span class="text-[11px] font-black text-slate-800 leading-tight">${p.nombre}</span>
-                    <span class="text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${al.cls}">${al.label}</span>
-                </div>
-                <div class="flex gap-3 text-[10px] text-slate-500 font-semibold">
-                    <span>👮 ${p.guardias}</span>
-                    <span>🔫 ${p.armas}</span>
-                    <span>🏢 ${p.puestos ?? '—'}</span>
-                </div>`;
-            card.onclick = () => seleccionarProyecto(nombre, p, card);
-            sidebar.appendChild(card);
-        });
-
-        // Pequeño fix: Leaflet necesita que el contenedor sea visible antes de init
-        setTimeout(() => provMap.invalidateSize(), 120);
-    }
-
-    // ── Estado del toggle "ver todos" ────────────────────────────
-    let mostrandoTodos    = false;
-    let provinciaActual   = null;
-    let puestosActuales   = [];
-
-    // Seleccionar proyecto → mostrar puestos
-    function seleccionarProyecto(provincia, proyecto, cardEl) {
-        document.querySelectorAll('.proj-card').forEach(c => c.classList.remove('active'));
-        cardEl.classList.add('active');
-        proyectoActivo  = proyecto.nombre;
-        provinciaActual = provincia;
         mostrandoTodos  = false;
-
+        provinciaActual = nombre;
+        puestosActuales = [];
         limpiarMarcadores();
 
-        const seccion = document.getElementById('prov-puestos-section');
-        const lista   = document.getElementById('prov-puestos-lista');
-        const titulo  = document.getElementById('prov-puestos-titulo');
-        titulo.textContent    = proyecto.nombre;
-        seccion.style.display = 'block';
-        lista.innerHTML       = '';
-
-        puestosActuales = (puestosData[provincia] || {})[proyecto.nombre] || [];
-
-        if (puestosActuales.length === 0) {
-            lista.innerHTML = `<p class="text-[10px] text-slate-400 italic px-1">Sin puestos con coordenadas registradas aún.<br>Agrégalos en la pestaña <strong>puestos</strong> del Excel.</p>`;
-            actualizarBotonTodos();
-            return;
+        if (!detalle || !detalle.proyectosList || detalle.proyectosList.length === 0) {
+            sidebar.innerHTML = '<p class="text-xs text-slate-400 px-1">Esta provincia no tiene proyectos registrados.</p>';
+        } else {
+            detalle.proyectosList.forEach((p, idx) => sidebar.appendChild(crearAcordeonProyecto(nombre, p, idx)));
         }
 
-        puestosActuales.forEach((puesto, i) => {
-            lista.appendChild(crearTarjetaPuesto(puesto, i));
-        });
-
-        // Fitear mapa para mostrar todos los puestos
-        const bounds = L.latLngBounds(puestosActuales.map(p => [p.lat, p.lng]));
-        provMap.fitBounds(bounds, { padding: [60, 60] });
-        actualizarBotonTodos();
+        setTimeout(() => provMap.invalidateSize(), 150);
     }
+
+    // Crear acordeón para un proyecto
+    function crearAcordeonProyecto(provincia, proyecto, idx) {
+        const dias    = diasRestantes(proyecto.fin);
+        const al      = alertaProyecto(dias);
+        const puestos = (puestosData[provincia] || {})[proyecto.nombre] || [];
+
+        const wrap   = document.createElement('div');
+        wrap.className = 'acord-proyecto';
+
+        const header = document.createElement('div');
+        header.className = 'acord-header';
+        header.innerHTML = `
+            <div class="flex-1 min-w-0">
+                <p class="text-[11px] font-black text-slate-800 leading-tight truncate">${proyecto.nombre}</p>
+                <div class="flex gap-1.5 mt-0.5 flex-wrap items-center">
+                    <span class="text-[9px] text-slate-500 font-semibold">👮${proyecto.guardias} 🔫${proyecto.armas} 🏢${proyecto.puestos ?? '—'}</span>
+                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ${al.cls}">${al.label}</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                ${puestos.length > 0 ? `<span class="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">${puestos.length} pts</span>` : ''}
+                <span class="acord-chevron">▼</span>
+            </div>`;
+
+        const body = document.createElement('div');
+        body.className = 'acord-body';
+
+        if (puestos.length === 0) {
+            body.innerHTML = `<p class="text-[10px] text-slate-400 italic px-1 py-1">Sin puestos con coordenadas.<br>Agrégalos en la pestaña <strong>puestos</strong> del Excel.</p>`;
+        } else {
+            // Botón ver todos
+            const btnTodos = document.createElement('button');
+            btnTodos.className = 'flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-blue-600 hover:bg-blue-700 text-white';
+            btnTodos.innerHTML = `🗺️ Ver todos (${puestos.length})`;
+            btnTodos.onclick   = (e) => {
+                e.stopPropagation();
+                seleccionarProyectoActual(provincia, proyecto.nombre, puestos);
+                // Si ya mostrando, ocultar; si no, mostrar
+                if (mostrandoTodos) {
+                    limpiarMarcadores();
+                    mostrandoTodos = false;
+                    btnTodos.innerHTML = `🗺️ Ver todos (${puestos.length})`;
+                    btnTodos.className = 'flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-blue-600 hover:bg-blue-700 text-white';
+                    document.querySelectorAll('.puesto-card').forEach(c => c.classList.remove('active'));
+                } else {
+                    limpiarMarcadores();
+                    puestosActuales.forEach((p, i) => colocarMarcador(p, false));
+                    mostrandoTodos = true;
+                    btnTodos.innerHTML = `🙈 Ocultar todos`;
+                    btnTodos.className = 'flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-slate-200 hover:bg-slate-300 text-slate-700';
+                    if (puestosActuales.length > 0) {
+                        const bounds = L.latLngBounds(puestosActuales.map(p => [p.lat, p.lng]));
+                        provMap.fitBounds(bounds, { padding: [40, 40] });
+                    }
+                }
+            };
+            body.appendChild(btnTodos);
+
+            // Tarjetas de puestos
+            puestos.forEach((puesto, pi) => {
+                const card = crearTarjetaPuesto(puesto, pi);
+                card.onclick = () => {
+                    seleccionarProyectoActual(provincia, proyecto.nombre, puestos);
+                    seleccionarPuesto(puesto, card, pi);
+                };
+                body.appendChild(card);
+            });
+        }
+
+        // Toggle acordeón al hacer clic en header
+        header.onclick = () => {
+            const isOpen = body.classList.contains('open');
+            document.querySelectorAll('.acord-body').forEach(b => b.classList.remove('open'));
+            document.querySelectorAll('.acord-header').forEach(h => h.classList.remove('active'));
+            limpiarMarcadores();
+            mostrandoTodos = false;
+            if (!isOpen) {
+                body.classList.add('open');
+                header.classList.add('active');
+                seleccionarProyectoActual(provincia, proyecto.nombre, puestos);
+            }
+        };
+
+        wrap.appendChild(header);
+        wrap.appendChild(body);
+        return wrap;
+    }
+
+    // Actualiza estado global del proyecto activo y centra el mapa
+    function seleccionarProyectoActual(provincia, nombreProyecto, puestos) {
+        provinciaActual = provincia;
+        proyectoActivo  = nombreProyecto;
+        puestosActuales = puestos;
+        if (!mostrandoTodos) limpiarMarcadores();
+        if (puestos.length > 0) {
+            const bounds = L.latLngBounds(puestos.map(p => [p.lat, p.lng]));
+            provMap.fitBounds(bounds, { padding: [60, 60] });
+        }
+    }
+
+    // Mantener por compatibilidad — vacía, reemplazada por crearAcordeonProyecto
+    function seleccionarProyecto() {}
 
     // Crear tarjeta de puesto con guardias múltiples
     function crearTarjetaPuesto(puesto, idx) {
@@ -1395,60 +1493,60 @@
     </script>
 
     <!-- ================================================================
-         MODAL — Vista de Provincia con Mapa Interactivo
+         MODAL — Vista de Provincia con Mapa Interactivo (Responsivo)
     ================================================================ -->
     <div id="prov-modal">
         <div id="prov-modal-inner">
 
-            <!-- Header del modal -->
-            <div class="flex items-center justify-between px-5 py-3 bg-slate-900 flex-shrink-0">
-                <div class="flex items-center gap-3">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-4 py-2.5 bg-slate-900 flex-shrink-0">
+                <div class="flex items-center gap-2 min-w-0">
                     <button onclick="cerrarVistaProvincia()"
-                            class="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
-                        ← Volver al mapa nacional
+                            class="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 flex-shrink-0 text-xs font-bold">
+                        ← Volver
                     </button>
-                    <div class="w-px h-5 bg-white/20"></div>
-                    <div>
-                        <h2 class="text-white font-black text-sm tracking-tight" id="prov-nombre"></h2>
-                        <p class="text-slate-400 text-[9px] font-bold uppercase tracking-widest">Vista de Provincia · Puestos Operativos</p>
+                    <div class="w-px h-4 bg-white/20 flex-shrink-0"></div>
+                    <div class="min-w-0">
+                        <h2 class="text-white font-black text-sm tracking-tight truncate" id="prov-nombre"></h2>
+                        <p class="text-slate-400 text-[8px] font-bold uppercase tracking-widest hidden sm:block">Vista de Provincia · Puestos Operativos</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 text-[9px] font-bold text-slate-400">
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>Armado</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>Desarmado</span>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="hidden sm:flex items-center gap-1 text-[9px] font-bold text-slate-400">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>Armado
+                    </span>
+                    <span class="hidden sm:flex items-center gap-1 text-[9px] font-bold text-slate-400">
+                        <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>Desarmado
+                    </span>
                     <button onclick="cerrarVistaProvincia()"
-                            class="ml-3 text-slate-400 hover:text-white text-lg leading-none p-1 rounded-lg hover:bg-white/10 transition-colors">✕</button>
+                            class="text-slate-400 hover:text-white text-xl leading-none p-1 rounded-lg hover:bg-white/10 transition-colors ml-1">✕</button>
                 </div>
             </div>
 
-            <!-- Body: sidebar + mapa -->
+            <!-- Body: mapa + sidebar (responsivo) -->
             <div id="prov-modal-body">
-
-                <!-- Sidebar izquierdo -->
-                <div id="prov-sidebar" class="custom-scrollbar">
-                    <!-- Proyectos -->
-                    <div class="p-4 border-b border-slate-100">
-                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Proyectos</h3>
-                        <div id="prov-proyectos" class="flex flex-col gap-2"></div>
-                    </div>
-
-                    <!-- Puestos del proyecto seleccionado -->
-                    <div id="prov-puestos-section" style="display:none;" class="p-4">
-                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Puestos</h3>
-                        <p class="text-[9px] text-blue-600 font-bold mb-2" id="prov-puestos-titulo"></p>
-                        <!-- Botón Ver todos -->
-                        <button id="btn-todos-puestos" style="display:none;"
-                                onclick="toggleTodosPuestos()"
-                                class="flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors w-full justify-center bg-blue-600 hover:bg-blue-700 text-white mb-3">
-                            🗺️ Ver todos
-                        </button>
-                        <div id="prov-puestos-lista" class="flex flex-col gap-2"></div>
-                        <p class="text-[9px] text-slate-400 mt-3 italic">Haz clic en un puesto para ver su ubicación</p>
-                    </div>
-                </div>
 
                 <!-- Mapa Leaflet -->
                 <div id="prov-map"></div>
+
+                <!-- Sidebar -->
+                <div id="prov-sidebar" class="custom-scrollbar">
+                    <div class="p-3">
+                        <!-- Leyenda móvil -->
+                        <div class="flex gap-3 mb-3 sm:hidden">
+                            <span class="flex items-center gap-1 text-[9px] font-bold text-slate-500">
+                                <span class="w-2 h-2 rounded-full bg-red-500"></span>Armado
+                            </span>
+                            <span class="flex items-center gap-1 text-[9px] font-bold text-slate-500">
+                                <span class="w-2 h-2 rounded-full bg-green-500"></span>Desarmado
+                            </span>
+                        </div>
+                        <!-- Hint -->
+                        <p class="text-[9px] text-slate-400 font-medium mb-2">Toca un proyecto para ver sus puestos</p>
+                        <!-- Lista de acordeones -->
+                        <div id="prov-proyectos" class="flex flex-col gap-2"></div>
+                    </div>
+                </div>
 
             </div>
         </div>

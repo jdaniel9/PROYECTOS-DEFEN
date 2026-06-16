@@ -340,6 +340,118 @@
 
         /* Marcador atenuado al filtrar */
         .marker-dim { opacity: 0.18 !important; }
+
+        /* ── PANEL GLOBAL DE FILTROS ──────────────────────────── */
+        #fab-filtros {
+            position: fixed;
+            bottom: 28px; right: 28px;
+            z-index: 5000;
+            width: 54px; height: 54px;
+            background: linear-gradient(135deg,#f59e0b,#d97706);
+            border-radius: 50%;
+            border: none; cursor: pointer;
+            box-shadow: 0 6px 24px rgba(245,158,11,0.55);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #fab-filtros:hover { transform: scale(1.1); box-shadow: 0 8px 32px rgba(245,158,11,0.7); }
+        #fab-filtros.open  { background: linear-gradient(135deg,#ef4444,#b91c1c); }
+
+        #panel-filtros-global {
+            position: fixed;
+            top: 0; right: -420px;
+            width: 400px; height: 100dvh;
+            background: #0f172a;
+            z-index: 4999;
+            display: flex; flex-direction: column;
+            box-shadow: -12px 0 48px rgba(0,0,0,0.5);
+            transition: right 0.32s cubic-bezier(0.16,1,0.3,1);
+            overflow: hidden;
+        }
+        #panel-filtros-global.open { right: 0; }
+
+        @media(max-width:440px){
+            #panel-filtros-global { width: 100vw; }
+        }
+
+        .pfg-section {
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding: 14px 18px;
+        }
+        .pfg-title {
+            font-size: 9px; font-weight: 900;
+            color: #64748b; letter-spacing: 0.1em;
+            text-transform: uppercase; margin-bottom: 10px;
+        }
+        .pfg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+        /* Chips de filtro */
+        .chip {
+            font-size: 10px; font-weight: 700;
+            padding: 5px 11px; border-radius: 999px;
+            border: 1.5px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: #94a3b8; cursor: pointer;
+            transition: all 0.15s; user-select: none;
+        }
+        .chip:hover { background: rgba(255,255,255,0.12); color: white; }
+        .chip.active-blue   { background:#3b82f6; color:white; border-color:#2563eb; }
+        .chip.active-red    { background:#dc2626; color:white; border-color:#b91c1c; }
+        .chip.active-green  { background:#16a34a; color:white; border-color:#15803d; }
+        .chip.active-purple { background:#7c3aed; color:white; border-color:#6d28d9; }
+        .chip.active-amber  { background:#d97706; color:white; border-color:#b45309; }
+        .chip.active-slate  { background:#475569; color:white; border-color:#334155; }
+
+        /* Checkboxes PDF */
+        .pdf-check-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 7px 10px; border-radius: 10px;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .pdf-check-row:hover { background: rgba(255,255,255,0.05); }
+        .pdf-check-row input[type=checkbox] {
+            width:15px; height:15px; accent-color:#f59e0b;
+            cursor:pointer; flex-shrink:0;
+        }
+        .pdf-check-row label {
+            font-size:11px; font-weight:700; color:#cbd5e1; cursor:pointer;
+        }
+        .pdf-check-row span {
+            font-size:9px; color:#64748b; margin-left:auto;
+        }
+
+        /* Botón generar PDF */
+        #btn-generar-pdf-global {
+            margin: 14px 18px;
+            padding: 11px;
+            background: linear-gradient(135deg,#f59e0b,#d97706);
+            color: #1c1917; font-weight: 900; font-size: 12px;
+            border: none; border-radius: 12px; cursor: pointer;
+            transition: all 0.15s; display: flex;
+            align-items: center; justify-content: center; gap: 8px;
+        }
+        #btn-generar-pdf-global:hover { filter: brightness(1.08); transform: scale(1.01); }
+
+        /* Badge activos */
+        #fab-badge {
+            position: absolute; top:-4px; right:-4px;
+            background:#ef4444; color:white;
+            font-size:8px; font-weight:900;
+            min-width:16px; height:16px;
+            border-radius:999px; display:none;
+            align-items:center; justify-content:center;
+            border:2px solid #0f172a; padding:0 3px;
+        }
+
+        /* Contador filtro activo en resumen */
+        .filtro-activo-badge {
+            display:inline-block;
+            font-size:8px; font-weight:900;
+            background:#f59e0b; color:#1c1917;
+            padding:1px 5px; border-radius:999px;
+            margin-left:4px; vertical-align:middle;
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-900">
@@ -513,6 +625,8 @@
 
         mostrarCargando(false);
         init();
+        // Activar chips "Todos" por defecto
+        document.querySelectorAll('.chip[data-val="todos"]').forEach(c => c.classList.add('active-blue'));
     }
 
     function mostrarCargando(activo) {
@@ -1786,8 +1900,535 @@
 
     // Cerrar con Escape
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') cerrarVistaProvincia();
+        if (e.key === 'Escape') {
+            cerrarVistaProvincia();
+            if (document.getElementById('panel-filtros-global').classList.contains('open'))
+                togglePanelFiltros();
+        }
     });
+
+    // =====================================================================
+    // FILTROS GLOBALES
+    // =====================================================================
+    const filtrosActivos = {
+        jornada: 'todos',
+        arma:    'todos',
+        radio:   'todos',
+        vence:   'todos',
+        cat:     'todos'
+    };
+
+    function togglePanelFiltros() {
+        const panel   = document.getElementById('panel-filtros-global');
+        const fab     = document.getElementById('fab-filtros');
+        const overlay = document.getElementById('panel-overlay');
+        const isOpen  = panel.classList.toggle('open');
+        fab.classList.toggle('open', isOpen);
+        overlay.style.display = isOpen ? 'block' : 'none';
+        document.getElementById('fab-icon').textContent = isOpen ? '✕' : '⚙️';
+        if (isOpen) actualizarResumenFiltro();
+    }
+
+    function toggleChip(btn, color) {
+        const grupo = btn.dataset.filtro;
+        const val   = btn.dataset.val;
+
+        // Desactivar todos los chips del mismo grupo
+        document.querySelectorAll(`.chip[data-filtro="${grupo}"]`).forEach(c => {
+            c.className = 'chip';
+        });
+
+        // Activar el seleccionado
+        btn.classList.add(`active-${color}`);
+        filtrosActivos[grupo] = val;
+
+        aplicarFiltrosGlobales();
+        actualizarBadgeFab();
+    }
+
+    function toggleCheck(id) {
+        const cb = document.getElementById(id);
+        cb.checked = !cb.checked;
+    }
+
+    // Determina si una provincia pasa todos los filtros activos
+    function provinciaPassaFiltros(nombre) {
+        const info    = data[nombre];
+        const detalle = detalleProvincias[nombre];
+        if (!info) return false;
+
+        // ── Filtro categoría ──
+        const fc = filtrosActivos.cat;
+        if (fc !== 'todos' && info.cat !== fc) return false;
+
+        // ── Filtro vencimiento (cualquier proyecto de la provincia) ──
+        const fv = filtrosActivos.vence;
+        if (fv !== 'todos' && detalle && detalle.proyectosList) {
+            const pasaVence = detalle.proyectosList.some(p => {
+                const d = diasRestantes(p.fin);
+                if (fv === 'critico') return d <= 30;
+                if (fv === 'alerta')  return d > 30 && d <= 60;
+                if (fv === 'ok')      return d > 60;
+                return true;
+            });
+            if (!pasaVence) return false;
+        }
+
+        // ── Filtros de puestos (jornada / arma / radio) ──
+        const fj = filtrosActivos.jornada;
+        const fa = filtrosActivos.arma;
+        const fr = filtrosActivos.radio;
+        const hayFiltrosPuesto = fj !== 'todos' || fa !== 'todos' || fr !== 'todos';
+
+        if (hayFiltrosPuesto) {
+            const puestosP = Object.values(puestosData[nombre] || {}).flat();
+            if (puestosP.length === 0) return false; // sin puestos no puede pasar filtros de puesto
+
+            const pasaPuesto = puestosP.some(p => {
+                // Jornada
+                if (fj !== 'todos') {
+                    const tipo = (p.tipo || '').toLowerCase().replace(/\s/g,'');
+                    if (!tipo.includes(fj)) return false;
+                }
+                // Arma
+                const armado = p.armado === true || String(p.armado).toLowerCase() === 'si';
+                if (fa === 'armado'    && !armado)  return false;
+                if (fa === 'desarmado' &&  armado)  return false;
+                // Radio
+                const conRadio = p.radio === true || String(p.radio).toLowerCase() === 'si';
+                if (fr === 'conradio' && !conRadio) return false;
+                if (fr === 'sinradio' &&  conRadio) return false;
+                return true;
+            });
+            if (!pasaPuesto) return false;
+        }
+
+        return true;
+    }
+
+    function aplicarFiltrosGlobales() {
+        const todosNeutros = Object.values(filtrosActivos).every(v => v === 'todos');
+
+        Object.keys(data).forEach(nombre => {
+            const cleanId = nombre.replace(/\s/g,'');
+            const marker  = document.getElementById(`marker-${cleanId}`);
+            const card    = document.getElementById(`card-${cleanId}`);
+            const pasa    = todosNeutros || provinciaPassaFiltros(nombre);
+
+            if (marker) {
+                marker.style.opacity       = pasa ? '1'    : '0.1';
+                marker.style.pointerEvents = pasa ? ''     : 'none';
+                marker.style.transform     = pasa ? ''     : 'translate(-50%,-50%) scale(0.6)';
+            }
+            if (card) {
+                card.style.opacity = pasa ? '1' : '0.3';
+            }
+        });
+
+        actualizarResumenFiltro();
+    }
+
+    function actualizarResumenFiltro() {
+        let provs = 0, guardias = 0, armas = 0, proyectos = 0;
+        const todosNeutros = Object.values(filtrosActivos).every(v => v === 'todos');
+
+        Object.keys(data).forEach(nombre => {
+            if (todosNeutros || provinciaPassaFiltros(nombre)) {
+                const info    = data[nombre];
+                const detalle = detalleProvincias[nombre];
+                if (info.proyectos > 0) {
+                    provs++;
+                    proyectos += info.proyectos;
+                    if (detalle && detalle.proyectosList) {
+                        detalle.proyectosList.forEach(p => {
+                            guardias += Number(p.guardias) || 0;
+                            armas    += Number(p.armas)    || 0;
+                        });
+                    }
+                }
+            }
+        });
+
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        set('fr-provincias', provs);
+        set('fr-guardias',   guardias);
+        set('fr-armas',      armas);
+        set('fr-proyectos',  proyectos);
+
+        // También actualizar resumen ejecutivo principal
+        document.getElementById('total-guardias').innerText   = guardias.toLocaleString();
+        document.getElementById('total-armas').innerText      = armas;
+        document.getElementById('total-proyectos').innerText  = proyectos;
+        document.getElementById('total-provincias').innerText = provs;
+    }
+
+    function actualizarBadgeFab() {
+        const activos = Object.values(filtrosActivos).filter(v => v !== 'todos').length;
+        const badge   = document.getElementById('fab-badge');
+        badge.style.display = activos > 0 ? 'flex' : 'none';
+        badge.textContent   = activos;
+    }
+
+    function resetearFiltros() {
+        Object.keys(filtrosActivos).forEach(k => filtrosActivos[k] = 'todos');
+        document.querySelectorAll('.chip').forEach(c => c.className = 'chip');
+        document.querySelectorAll('.chip[data-val="todos"]').forEach(c => c.classList.add('active-blue'));
+        aplicarFiltrosGlobales();
+        actualizarBadgeFab();
+        // Restaurar totales reales llamando a init parcial
+        init();
+    }
+
+    // =====================================================================
+    // PDF GLOBAL
+    // =====================================================================
+    async function generarPDFGlobal() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+        const W   = 210;
+        const hoy = new Date();
+        const fh  = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+
+        const DARK  = [15,23,42];
+        const BLUE  = [37,99,235];
+        const GREEN = [22,163,74];
+        const RED   = [220,38,38];
+        const AMB   = [217,119,6];
+        const GRAY  = [241,245,249];
+        const LGRAY = [248,250,252];
+
+        // ── Opciones seleccionadas ──
+        const inc = {
+            resumen:    document.getElementById('pdf-resumen')?.checked,
+            armamento:  document.getElementById('pdf-armamento')?.checked,
+            radios:     document.getElementById('pdf-radios')?.checked,
+            personal:   document.getElementById('pdf-personal')?.checked,
+            proyectos:  document.getElementById('pdf-proyectos')?.checked,
+            tramites:   document.getElementById('pdf-tramites')?.checked,
+            puestos:    document.getElementById('pdf-puestos')?.checked,
+        };
+
+        // Helper encabezado de página
+        const encabezado = (titulo) => {
+            doc.setFillColor(...DARK);
+            doc.rect(0,0,W,22,'F');
+            doc.setTextColor(255,255,255);
+            doc.setFontSize(13); doc.setFont('helvetica','bold');
+            doc.text('DEFEN CIA. LTDA.', 14, 10);
+            doc.setFontSize(8); doc.setFont('helvetica','normal');
+            doc.setTextColor(148,163,184);
+            doc.text(titulo, 14, 17);
+            doc.text(`Generado: ${fh}`, W-14, 17, {align:'right'});
+        };
+
+        // Helper línea separadora
+        const linea = (y) => {
+            doc.setDrawColor(226,232,240);
+            doc.line(14, y, W-14, y);
+        };
+
+        let y = 0; let paginaActual = 1;
+
+        const saltoSiNecesario = (espacio) => {
+            if (y + espacio > 275) { doc.addPage(); encabezadoMini(); y = 30; paginaActual++; }
+        };
+
+        const encabezadoMini = () => {
+            doc.setFillColor(...DARK);
+            doc.rect(0,0,W,12,'F');
+            doc.setTextColor(148,163,184); doc.setFontSize(7); doc.setFont('helvetica','normal');
+            doc.text('DEFEN CIA. LTDA. — Reporte Operativo Nacional', 14, 8);
+            doc.text(fh, W-14, 8, {align:'right'});
+        };
+
+        // Recoger provincias activas filtradas
+        const provsActivas = Object.keys(data)
+            .filter(n => provinciaPassaFiltros(n) && data[n].proyectos > 0)
+            .sort();
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 1 — RESUMEN EJECUTIVO
+        // ════════════════════════════════════════════════
+        if (inc.resumen) {
+            encabezado('Reporte Operativo Nacional — Resumen Ejecutivo');
+            y = 30;
+
+            // KPIs
+            let totalG=0, totalA=0, totalPu=0, totalPr=0;
+            provsActivas.forEach(n => {
+                const det = detalleProvincias[n];
+                if (det && det.proyectosList) det.proyectosList.forEach(p => {
+                    totalG  += Number(p.guardias)||0;
+                    totalA  += Number(p.armas)   ||0;
+                    totalPu += Number(p.puestos) ||0;
+                    totalPr++;
+                });
+            });
+
+            const kpis = [
+                ['Guardia(s)',  totalG,  BLUE],
+                ['Arma(s)',     totalA,  RED],
+                ['Puesto(s)',   totalPu, GREEN],
+                ['Proyecto(s)', totalPr, AMB],
+            ];
+            const bw = (W-28)/4 - 3;
+            kpis.forEach(([lbl, val, col], i) => {
+                const x = 14 + i*(bw+4);
+                doc.setFillColor(...GRAY); doc.roundedRect(x, y, bw, 18, 2, 2, 'F');
+                doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.setTextColor(...col);
+                doc.text(String(val), x+bw/2, y+11, {align:'center'});
+                doc.setFontSize(6);  doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+                doc.text(lbl.toUpperCase(), x+bw/2, y+16, {align:'center'});
+            });
+            y += 24;
+
+            // Tabla provincias
+            doc.autoTable({
+                startY: y, margin:{left:14,right:14},
+                head: [['Provincia','Tipo','Estado','Guardia(s)','Arma(s)','Puesto(s)','Proy.']],
+                body: provsActivas.map(n => {
+                    const inf = data[n];
+                    const det = detalleProvincias[n];
+                    let g=0,a=0,pu=0;
+                    if (det && det.proyectosList) det.proyectosList.forEach(p => {
+                        g+=Number(p.guardias)||0; a+=Number(p.armas)||0; pu+=Number(p.puestos)||0;
+                    });
+                    return [n, inf.tipo, inf.estado, g, a, pu, inf.proyectos];
+                }),
+                headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                bodyStyles:{fontSize:7,cellPadding:2},
+                alternateRowStyles:{fillColor:LGRAY},
+                columnStyles:{0:{fontStyle:'bold'},3:{halign:'center'},4:{halign:'center'},5:{halign:'center'},6:{halign:'center'}}
+            });
+            y = doc.lastAutoTable.finalY + 6;
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 2 — ARMAMENTO GLOBAL
+        // ════════════════════════════════════════════════
+        if (inc.armamento) {
+            doc.addPage(); encabezado('Inventario de Armamento — Nacional'); y = 30;
+
+            const filas = [];
+            provsActivas.forEach(n => {
+                const det = detalleProvincias[n];
+                if (!det || !det.proyectosList) return;
+                det.proyectosList.forEach(p => {
+                    if (p.armas > 0) {
+                        const puestosP = Object.values(puestosData[n] || {}).flat()
+                            .filter(pu => (pu.proyecto || p.nombre) === p.nombre && pu.armado);
+                        filas.push([n, p.nombre, p.armas,
+                            puestosP.map(pu => pu.arma || 'Arma letal').join('\n') || '—']);
+                    }
+                });
+            });
+
+            const totalArmas = filas.reduce((s,f) => s+Number(f[2]),0);
+            // Bloque resumen armamento
+            doc.setFillColor(...GRAY); doc.roundedRect(14, y, W-28, 14, 2, 2, 'F');
+            doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
+            doc.text(`Total armas en campo: ${totalArmas}`, W/2, y+9, {align:'center'});
+            y += 18;
+
+            if (filas.length > 0) {
+                doc.autoTable({
+                    startY:y, margin:{left:14,right:14},
+                    head:[['Provincia','Proyecto','Arma(s)','Detalle']],
+                    body: filas,
+                    headStyles:{fillColor:RED,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                    bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                    columnStyles:{2:{halign:'center',cellWidth:16}}
+                });
+            } else {
+                doc.setFontSize(9); doc.setTextColor(100,116,139);
+                doc.text('No hay armas registradas para los filtros seleccionados.',14,y+8);
+            }
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 3 — RADIOS GLOBAL
+        // ════════════════════════════════════════════════
+        if (inc.radios) {
+            doc.addPage(); encabezado('Inventario de Radios — Nacional'); y = 30;
+            const filas = [];
+            provsActivas.forEach(n => {
+                const puestosP = Object.values(puestosData[n] || {}).flat();
+                puestosP.forEach(pu => {
+                    const conRadio = pu.radio === true || String(pu.radio).toLowerCase() === 'si';
+                    if (conRadio) filas.push([n, pu.nombre, pu.radio_info || 'TH510', pu.guardia || '—']);
+                });
+            });
+
+            doc.setFillColor(...GRAY); doc.roundedRect(14,y,W-28,14,2,2,'F');
+            doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(124,58,237);
+            doc.text(`Total radios registrados: ${filas.length}`, W/2, y+9, {align:'center'});
+            y += 18;
+
+            if (filas.length > 0) {
+                doc.autoTable({
+                    startY:y, margin:{left:14,right:14},
+                    head:[['Provincia','Puesto','Modelo/Serie','Guardia asignado']],
+                    body: filas,
+                    headStyles:{fillColor:[124,58,237],textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                    bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY}
+                });
+            } else {
+                doc.setFontSize(9); doc.setTextColor(100,116,139);
+                doc.text('No hay radios registrados en los puestos cargados.',14,y+8);
+            }
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 4 — PERSONAL / NÓMINA GLOBAL
+        // ════════════════════════════════════════════════
+        if (inc.personal) {
+            doc.addPage(); encabezado('Nómina de Personal Operativo — Nacional'); y = 30;
+            const filas = [];
+            provsActivas.forEach(n => {
+                Object.entries(puestosData[n] || {}).forEach(([proyecto, puestosList]) => {
+                    puestosList.forEach(pu => {
+                        const gs = Array.isArray(pu.guardias)
+                            ? pu.guardias
+                            : (pu.guardia||'').split(',').map(g=>g.trim()).filter(Boolean);
+                        gs.forEach((g,i) => {
+                            filas.push([n, proyecto, pu.nombre, g,
+                                i===0 ? 'Turno actual' : 'Rotación',
+                                pu.armado===true||String(pu.armado).toLowerCase()==='si' ? 'Sí':'No',
+                                pu.tipo||'—', pu.dias||'—']);
+                        });
+                    });
+                });
+            });
+
+            doc.setFillColor(...GRAY); doc.roundedRect(14,y,W-28,14,2,2,'F');
+            doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...BLUE);
+            doc.text(`Total personal registrado: ${filas.length} agente(s)`, W/2, y+9, {align:'center'});
+            y += 18;
+
+            if (filas.length > 0) {
+                doc.autoTable({
+                    startY:y, margin:{left:14,right:14},
+                    head:[['Provincia','Proyecto','Puesto','Guardia','Rol','Armado','Jornada','Días']],
+                    body: filas,
+                    headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:6,fontStyle:'bold',cellPadding:2},
+                    bodyStyles:{fontSize:6,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                    columnStyles:{5:{halign:'center'},0:{fontStyle:'bold'}}
+                });
+            } else {
+                doc.setFontSize(9); doc.setTextColor(100,116,139);
+                doc.text('No hay personal registrado en los puestos cargados.',14,y+8);
+            }
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 5 — PROYECTOS POR PROVINCIA
+        // ════════════════════════════════════════════════
+        if (inc.proyectos) {
+            doc.addPage(); encabezado('Proyectos Activos por Provincia'); y = 30;
+            const filas = [];
+            provsActivas.forEach(n => {
+                const det = detalleProvincias[n];
+                if (!det || !det.proyectosList) return;
+                det.proyectosList.forEach(p => {
+                    const d   = diasRestantes(p.fin);
+                    const est = d <= 30 ? '🔴 CRÍTICO' : d <= 60 ? '🟡 ALERTA' : '🟢 OK';
+                    filas.push([n, p.nombre, p.guardias, p.armas, p.puestos??'—',
+                        p.fin ? formatFecha(p.fin) : '—', `${d < 0 ? 'VENCIDO' : d+'d'}`, est]);
+                });
+            });
+
+            doc.autoTable({
+                startY:y, margin:{left:14,right:14},
+                head:[['Provincia','Proyecto','G.','A.','Pu.','Fin','Días','Estado']],
+                body: filas,
+                headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                columnStyles:{2:{halign:'center'},3:{halign:'center'},4:{halign:'center'},6:{halign:'center'},7:{halign:'center'}}
+            });
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 6 — ESTADO DE TRÁMITES
+        // ════════════════════════════════════════════════
+        if (inc.tramites) {
+            doc.addPage(); encabezado('Estado de Trámites por Provincia'); y = 30;
+            const filas = Object.keys(data).sort().map(n => {
+                const det = detalleProvincias[n];
+                if (!det) return null;
+                const ti = det;
+                let diasV = '—', estadoV = '—';
+                if (ti.vigenciaFin) {
+                    const d = Math.round((new Date(ti.vigenciaFin) - hoy)/86400000);
+                    diasV   = d < 0 ? 'VENCIDA' : `${d}d`;
+                    estadoV = d < 0 ? 'VENCIDA' : d < 90 ? 'POR VENCER' : 'VIGENTE';
+                } else if (ti.estadoTramite) {
+                    estadoV = ti.estadoTramite;
+                }
+                return [n, ti.tramite||'Sin registro',
+                    ti.vigenciaInicio ? formatFecha(ti.vigenciaInicio) : '—',
+                    ti.vigenciaFin    ? formatFecha(ti.vigenciaFin)    : '—',
+                    diasV, estadoV];
+            }).filter(Boolean);
+
+            doc.autoTable({
+                startY:y, margin:{left:14,right:14},
+                head:[['Provincia','N° Trámite','Inicio','Fin','Días','Estado']],
+                body: filas,
+                headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                columnStyles:{4:{halign:'center'},5:{halign:'center'}}
+            });
+        }
+
+        // ════════════════════════════════════════════════
+        // SECCIÓN 7 — PUESTOS OPERATIVOS
+        // ════════════════════════════════════════════════
+        if (inc.puestos) {
+            doc.addPage(); encabezado('Detalle de Puestos Operativos'); y = 30;
+            const filas = [];
+            provsActivas.forEach(n => {
+                Object.entries(puestosData[n] || {}).forEach(([proyecto, lista]) => {
+                    lista.forEach(pu => {
+                        const gs = Array.isArray(pu.guardias)
+                            ? pu.guardias.join(', ')
+                            : (pu.guardia||'—');
+                        filas.push([n, proyecto, pu.nombre, gs,
+                            pu.tipo||'—',
+                            pu.armado===true||String(pu.armado).toLowerCase()==='si'?'Sí':'No',
+                            pu.radio===true||String(pu.radio).toLowerCase()==='si'?'Sí':'No',
+                            pu.turno||'—', pu.dias||'—']);
+                    });
+                });
+            });
+
+            if (filas.length > 0) {
+                doc.autoTable({
+                    startY:y, margin:{left:14,right:14},
+                    head:[['Prov.','Proyecto','Puesto','Guardia(s)','Jornada','Arma','Radio','Turno','Días']],
+                    body: filas,
+                    headStyles:{fillColor:DARK,textColor:[255,255,255],fontSize:6,fontStyle:'bold',cellPadding:2},
+                    bodyStyles:{fontSize:6,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                    columnStyles:{5:{halign:'center'},6:{halign:'center'}}
+                });
+            } else {
+                doc.setFontSize(9); doc.setTextColor(100,116,139);
+                doc.text('No hay puestos con coordenadas registradas aún.',14,y+8);
+            }
+        }
+
+        // ── Pie en todas las páginas ──
+        const total = doc.getNumberOfPages();
+        for (let i=1; i<=total; i++) {
+            doc.setPage(i);
+            doc.setFillColor(...DARK); doc.rect(0,287,W,10,'F');
+            doc.setFontSize(6); doc.setTextColor(148,163,184);
+            doc.text('DEFEN CIA. LTDA. · Documento confidencial · Uso interno',14,293);
+            doc.text(`Página ${i} de ${total}`, W-14,293,{align:'right'});
+        }
+
+        const fn = `ReporteNacional_${fh.replace(/\//g,'-')}.pdf`;
+        doc.save(fn);
+    }
     </script>
 
     <!-- jsPDF + AutoTable para exportar PDF -->
@@ -1856,5 +2497,166 @@
             </div>
         </div>
     </div>
+    <!-- ================================================================
+         BOTÓN FLOTANTE + PANEL GLOBAL DE FILTROS
+    ================================================================ -->
+
+    <!-- FAB -->
+    <button id="fab-filtros" onclick="togglePanelFiltros()" title="Filtros y reportes globales">
+        <span id="fab-icon">⚙️</span>
+        <span id="fab-badge">0</span>
+    </button>
+
+    <!-- Panel lateral -->
+    <div id="panel-filtros-global">
+
+        <!-- Header del panel -->
+        <div class="flex items-center justify-between px-5 py-4 flex-shrink-0" style="border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div>
+                <h2 style="color:white;font-weight:900;font-size:14px;">Filtros & Reportes</h2>
+                <p style="color:#64748b;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">Control operativo nacional</p>
+            </div>
+            <button onclick="togglePanelFiltros()" style="color:#64748b;font-size:20px;background:none;border:none;cursor:pointer;line-height:1;">✕</button>
+        </div>
+
+        <!-- Scroll interior -->
+        <div class="custom-scrollbar" style="overflow-y:auto;flex:1;padding-bottom:8px;">
+
+            <!-- ── 1. TIPO DE JORNADA ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">⏱ Tipo de jornada</p>
+                <div class="pfg-chips">
+                    <button class="chip" data-filtro="jornada" data-val="todos"  onclick="toggleChip(this,'blue')"  >◉ Todas</button>
+                    <button class="chip" data-filtro="jornada" data-val="24h"    onclick="toggleChip(this,'purple')">🌙 24 Horas</button>
+                    <button class="chip" data-filtro="jornada" data-val="12h"    onclick="toggleChip(this,'blue')"  >🔄 12 Horas</button>
+                    <button class="chip" data-filtro="jornada" data-val="10h"    onclick="toggleChip(this,'amber')" >📋 10 Horas</button>
+                    <button class="chip" data-filtro="jornada" data-val="8h"     onclick="toggleChip(this,'green')" >☀️ 8 Horas</button>
+                </div>
+            </div>
+
+            <!-- ── 2. ARMAMENTO ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">🔫 Armamento</p>
+                <div class="pfg-chips">
+                    <button class="chip" data-filtro="arma" data-val="todos"     onclick="toggleChip(this,'blue')"  >◉ Todos</button>
+                    <button class="chip" data-filtro="arma" data-val="armado"    onclick="toggleChip(this,'red')"   >🔫 Con arma</button>
+                    <button class="chip" data-filtro="arma" data-val="desarmado" onclick="toggleChip(this,'green')" >👮 Sin arma</button>
+                </div>
+            </div>
+
+            <!-- ── 3. RADIO ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">📻 Radio</p>
+                <div class="pfg-chips">
+                    <button class="chip" data-filtro="radio" data-val="todos"    onclick="toggleChip(this,'blue')"  >◉ Todos</button>
+                    <button class="chip" data-filtro="radio" data-val="conradio" onclick="toggleChip(this,'purple')">📻 Con radio</button>
+                    <button class="chip" data-filtro="radio" data-val="sinradio" onclick="toggleChip(this,'slate')" >🔇 Sin radio</button>
+                </div>
+            </div>
+
+            <!-- ── 4. ESTADO DE PROYECTO ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">📅 Vencimiento de proyectos</p>
+                <div class="pfg-chips">
+                    <button class="chip" data-filtro="vence" data-val="todos"    onclick="toggleChip(this,'blue')"  >◉ Todos</button>
+                    <button class="chip" data-filtro="vence" data-val="critico"  onclick="toggleChip(this,'red')"   >🔴 ≤30 días</button>
+                    <button class="chip" data-filtro="vence" data-val="alerta"   onclick="toggleChip(this,'amber')" >🟡 ≤60 días</button>
+                    <button class="chip" data-filtro="vence" data-val="ok"       onclick="toggleChip(this,'green')" >🟢 &gt;60 días</button>
+                </div>
+            </div>
+
+            <!-- ── 5. PRESENCIA ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">📍 Presencia</p>
+                <div class="pfg-chips">
+                    <button class="chip" data-filtro="cat" data-val="todos"        onclick="toggleChip(this,'blue')"  >◉ Todos</button>
+                    <button class="chip" data-filtro="cat" data-val="active"       onclick="toggleChip(this,'green')" >🟢 Con proyectos</button>
+                    <button class="chip" data-filtro="cat" data-val="agency_only"  onclick="toggleChip(this,'amber')" >🟡 Sin proyectos</button>
+                    <button class="chip" data-filtro="cat" data-val="none"         onclick="toggleChip(this,'red')"   >🔴 Sin presencia</button>
+                </div>
+            </div>
+
+            <!-- ── RESUMEN FILTRADO ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">📊 Resultados del filtro</p>
+                <div id="filtro-resumen" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                        <p style="font-size:18px;font-weight:900;color:#60a5fa;" id="fr-provincias">—</p>
+                        <p style="font-size:8px;color:#64748b;font-weight:700;text-transform:uppercase;">Provincias</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                        <p style="font-size:18px;font-weight:900;color:#4ade80;" id="fr-guardias">—</p>
+                        <p style="font-size:8px;color:#64748b;font-weight:700;text-transform:uppercase;">Guardia(s)</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                        <p style="font-size:18px;font-weight:900;color:#f87171;" id="fr-armas">—</p>
+                        <p style="font-size:8px;color:#64748b;font-weight:700;text-transform:uppercase;">Arma(s)</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:10px 12px;">
+                        <p style="font-size:18px;font-weight:900;color:#c084fc;" id="fr-proyectos">—</p>
+                        <p style="font-size:8px;color:#64748b;font-weight:700;text-transform:uppercase;">Proyecto(s)</p>
+                    </div>
+                </div>
+                <button onclick="resetearFiltros()"
+                        style="margin-top:10px;width:100%;padding:7px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#94a3b8;font-size:10px;font-weight:700;cursor:pointer;">
+                    🔄 Limpiar todos los filtros
+                </button>
+            </div>
+
+            <!-- ── GENERADOR PDF GLOBAL ── -->
+            <div class="pfg-section">
+                <p class="pfg-title">📄 Generar reporte PDF</p>
+                <p style="font-size:9px;color:#64748b;margin-bottom:10px;">Selecciona las secciones a incluir:</p>
+
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-resumen')">
+                    <input type="checkbox" id="pdf-resumen" checked>
+                    <label for="pdf-resumen">Resumen ejecutivo nacional</label>
+                    <span>Totales</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-armamento')">
+                    <input type="checkbox" id="pdf-armamento" checked>
+                    <label for="pdf-armamento">Inventario de armamento</label>
+                    <span>Por provincia</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-radios')">
+                    <input type="checkbox" id="pdf-radios" checked>
+                    <label for="pdf-radios">Inventario de radios</label>
+                    <span>Por puesto</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-personal')">
+                    <input type="checkbox" id="pdf-personal" checked>
+                    <label for="pdf-personal">Nómina de personal</label>
+                    <span>Guardias activos</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-proyectos')">
+                    <input type="checkbox" id="pdf-proyectos" checked>
+                    <label for="pdf-proyectos">Proyectos por provincia</label>
+                    <span>Con vencimientos</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-tramites')">
+                    <input type="checkbox" id="pdf-tramites" checked>
+                    <label for="pdf-tramites">Estado de trámites</label>
+                    <span>Vigencias</span>
+                </div>
+                <div class="pdf-check-row" onclick="toggleCheck('pdf-puestos')">
+                    <input type="checkbox" id="pdf-puestos">
+                    <label for="pdf-puestos">Detalle de puestos operativos</label>
+                    <span>Con coordenadas</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón generar -->
+        <div style="flex-shrink:0;padding:0 0 env(safe-area-inset-bottom);">
+            <button id="btn-generar-pdf-global" onclick="generarPDFGlobal()">
+                ⬇️ Generar PDF con selección
+            </button>
+        </div>
+    </div>
+
+    <!-- Overlay para cerrar al hacer clic fuera -->
+    <div id="panel-overlay" onclick="togglePanelFiltros()"
+         style="display:none;position:fixed;inset:0;z-index:4998;background:rgba(0,0,0,0.3);backdrop-filter:blur(2px);"></div>
+
 </body>
 </html>

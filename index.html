@@ -16,7 +16,34 @@
 
         * { font-family: 'DM Sans', sans-serif; }
 
-        body { background: #f1f5f9; }
+        body {
+            background-color: #0f172a;
+            background-image: url('ChatGPT_Image_15_jun_2026__03_09_45_p_m.png');
+            background-size: cover;
+            background-position: center center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+        }
+
+        /* Capa semitransparente sobre el fondo para que el contenido sea legible */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.72);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* El contenido principal debe estar sobre la capa */
+        .max-w-\[1560px\] { position: relative; z-index: 1; }
+
+        /* Cards con efecto cristal sobre el fondo oscuro */
+        header,
+        .bg-white {
+            background: rgba(255, 255, 255, 0.96) !important;
+            backdrop-filter: blur(12px);
+        }
 
         .map-wrapper {
             position: relative;
@@ -349,7 +376,7 @@
             <!-- ====== MAPA ====== -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200" style="min-height:0;">
                 <div class="map-wrapper" id="map-container">
-                    <img src="https://mundomapa.com/wp-content/uploads/Mapa-de-Ecuador-blanco-con-nombres.jpg"
+                    <img src="Mapa-de-Ecuador-blanco-con-nombres.jpg.png"
                          alt="Mapa de Ecuador"
                          class="map-image"
                          id="ecuador-map">
@@ -1534,17 +1561,17 @@
     // FILTROS DE ESTADO
     // =====================================================================
     let filtroActivo = 'todos';
- 
+
     function aplicarFiltro(tipo) {
         filtroActivo = tipo;
- 
+
         // Actualizar estilo de botones
         ['todos','armado','desarmado','radio'].forEach(t => {
             const btn = document.getElementById(`f-${t}`);
             if (!btn) return;
             btn.className = tipo === t ? `filtro-btn on-${t}` : 'filtro-btn';
         });
- 
+
         // Aplicar / quitar atenuado en marcadores
         marcadoresMapa.forEach(marker => {
             const puesto = marker._puestoData;
@@ -1559,7 +1586,7 @@
                 el.style.pointerEvents = visible ? '' : 'none';
             }
         });
- 
+
         // Contador de visibles
         const total    = marcadoresMapa.length;
         if (total === 0) return;
@@ -1570,7 +1597,7 @@
             if (tipo === 'desarmado') return !(p.armado === true || p.armado === 'Si');
             if (tipo === 'radio')     return p.radio === true  || p.radio  === 'Si';
         }).length;
- 
+
         // Insertar/actualizar contador junto al botón PDF
         let counter = document.getElementById('filtro-counter');
         if (!counter) {
@@ -1582,7 +1609,7 @@
         }
         counter.textContent = tipo !== 'todos' ? `${visibles} de ${total}` : '';
     }
- 
+
     // =====================================================================
     // EXPORTAR PDF
     // =====================================================================
@@ -1594,14 +1621,14 @@
         const hoy     = new Date();
         const fechaHoy = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
         const W = 210; // ancho A4 mm
- 
+
         // ── Paleta ──────────────────────────────────────────────
         const DARK  = [15,  23,  42];
         const BLUE  = [37, 99,  235];
         const GREEN = [22, 163, 74];
         const RED   = [220, 38,  38];
         const GRAY  = [241,245,249];
- 
+
         // ── Encabezado ──────────────────────────────────────────
         doc.setFillColor(...DARK);
         doc.rect(0, 0, W, 28, 'F');
@@ -1617,9 +1644,9 @@
         doc.setFontSize(8); doc.setFont('helvetica','normal');
         doc.setTextColor(148,163,184);
         doc.text(`Generado: ${fechaHoy}`, W - 14, 25, { align:'right' });
- 
+
         let y = 36;
- 
+
         // ── Bloque trámite ───────────────────────────────────────
         doc.setFillColor(...GRAY);
         doc.roundedRect(14, y, W-28, 22, 3, 3, 'F');
@@ -1630,7 +1657,7 @@
         doc.text('ESTADO', 155, y+5);
         doc.setTextColor(...DARK); doc.setFontSize(9); doc.setFont('helvetica','bold');
         doc.text(detalle.tramite || 'Sin registro', 20, y+12);
- 
+
         if (detalle.vigenciaInicio && detalle.vigenciaFin) {
             const dias = Math.round((new Date(detalle.vigenciaFin) - hoy) / 86400000);
             doc.text(`${formatFecha(detalle.vigenciaInicio)} → ${formatFecha(detalle.vigenciaFin)}`, 85, y+12);
@@ -1647,7 +1674,7 @@
         const provInfo = data[prov] || {};
         doc.text(provInfo.estado || '—', 155, y+12);
         y += 28;
- 
+
         // ── Supervisores ─────────────────────────────────────────
         if (detalle.supervisores && detalle.supervisores.length > 0) {
             doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(100,116,139);
@@ -1656,16 +1683,16 @@
             doc.text(detalle.supervisores.join('  ·  '), 14, y+5);
             y += 12;
         }
- 
+
         // ── Proyectos ────────────────────────────────────────────
         if (detalle.proyectosList && detalle.proyectosList.length > 0) {
             doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...DARK);
             doc.text('PROYECTOS ACTIVOS', 14, y); y += 5;
- 
+
             detalle.proyectosList.forEach(p => {
                 const dias  = Math.round((new Date(p.fin) - hoy) / 86400000);
                 const color = dias <= 30 ? RED : dias <= 60 ? [161,98,7] : GREEN;
- 
+
                 doc.autoTable({
                     startY: y,
                     margin: { left:14, right:14 },
@@ -1694,7 +1721,7 @@
                     columnStyles: { 0:{cellWidth:40},1:{cellWidth:30},2:{cellWidth:32},3:{cellWidth:'auto'} }
                 });
                 y = doc.lastAutoTable.finalY + 4;
- 
+
                 // Puestos del proyecto con coordenadas
                 const puestosProyecto = (puestosData[prov] || {})[p.nombre] || [];
                 if (puestosProyecto.length > 0) {
@@ -1725,11 +1752,11 @@
                     });
                     y = doc.lastAutoTable.finalY + 4;
                 }
- 
+
                 if (y > 260) { doc.addPage(); y = 20; }
             });
         }
- 
+
         // ── Pie de página en todas las páginas ───────────────────
         const totalPag = doc.getNumberOfPages();
         for (let i = 1; i <= totalPag; i++) {
@@ -1740,7 +1767,7 @@
             doc.text('DEFEN CIA. LTDA. · Documento confidencial · Uso interno', 14, 293);
             doc.text(`Página ${i} de ${totalPag}`, W-14, 293, { align:'right' });
         }
- 
+
         doc.save(`Reporte_${prov}_${fechaHoy.replace(/\//g,'-')}.pdf`);
     }
 

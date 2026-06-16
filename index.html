@@ -8,6 +8,9 @@
     <!-- Leaflet.js — mapas interactivos -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- jsPDF — exportar reportes PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 
@@ -267,6 +270,47 @@
         }
         .leaflet-popup-content { margin: 0 !important; }
         .leaflet-popup-tip-container { display:none; }
+
+        /* ── Barra de filtros y acciones ──────────────────────── */
+        #filtros-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            background: #0f172a;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .filtro-btn {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 10px; font-weight: 700;
+            padding: 4px 10px; border-radius: 20px;
+            border: 1.5px solid transparent;
+            cursor: pointer; transition: all 0.15s;
+            white-space: nowrap;
+            background: rgba(255,255,255,0.07);
+            color: #94a3b8;
+        }
+        .filtro-btn:hover { background: rgba(255,255,255,0.12); color: white; }
+        .filtro-btn.on-todos    { background:#3b82f6; color:white; border-color:#2563eb; }
+        .filtro-btn.on-armado   { background:#dc2626; color:white; border-color:#b91c1c; }
+        .filtro-btn.on-desarmado{ background:#16a34a; color:white; border-color:#15803d; }
+        .filtro-btn.on-radio    { background:#7c3aed; color:white; border-color:#6d28d9; }
+
+        .pdf-btn {
+            margin-left: auto;
+            display: flex; align-items: center; gap: 5px;
+            font-size: 10px; font-weight: 800;
+            padding: 5px 12px; border-radius: 20px;
+            background: #f59e0b; color: #1c1917;
+            cursor: pointer; transition: all 0.15s;
+            white-space: nowrap; border: none;
+        }
+        .pdf-btn:hover { background: #d97706; }
+
+        /* Marcador atenuado al filtrar */
+        .marker-dim { opacity: 0.18 !important; }
     </style>
 </head>
 <body class="min-h-screen text-slate-900">
@@ -1209,6 +1253,8 @@
             detalle.proyectosList.forEach((p, idx) => sidebar.appendChild(crearAcordeonProyecto(nombre, p, idx)));
         }
 
+        filtroActivo = 'todos';
+        aplicarFiltro('todos');
         setTimeout(() => provMap.invalidateSize(), 150);
     }
 
@@ -1288,6 +1334,7 @@
             document.querySelectorAll('.acord-header').forEach(h => h.classList.remove('active'));
             limpiarMarcadores();
             mostrandoTodos = false;
+            aplicarFiltro('todos');   // resetear filtros al cambiar proyecto
             if (!isOpen) {
                 body.classList.add('open');
                 header.classList.add('active');
@@ -1392,6 +1439,8 @@
 
         const icon = L.divIcon({ html: iconHtml, className:'', iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-36] });
         const marker = L.marker([puesto.lat, puesto.lng], { icon }).addTo(provMap);
+        marker._puestoData = puesto;  // ← referencia para los filtros
+        marker._puestoData = puesto;  // ← referencia para los filtros
 
         // Guardias en el popup
         const guardiasPopup = guardias.length > 1
@@ -1436,6 +1485,7 @@
             </div>`;
 
         marker.bindPopup(popup, { maxWidth:300, minWidth:240 });
+        marker._puestoData = puesto;   // ← necesario para que los filtros funcionen
         if (abrirPopup) marker.openPopup();
         marcadoresMapa.push(marker);
         return marker;
@@ -1480,10 +1530,229 @@
         marcadoresMapa = [];
     }
 
+    // =====================================================================
+    // FILTROS DE ESTADO
+    // =====================================================================
+    let filtroActivo = 'todos';
+ 
+    function aplicarFiltro(tipo) {
+        filtroActivo = tipo;
+ 
+        // Actualizar estilo de botones
+        ['todos','armado','desarmado','radio'].forEach(t => {
+            const btn = document.getElementById(`f-${t}`);
+            if (!btn) return;
+            btn.className = tipo === t ? `filtro-btn on-${t}` : 'filtro-btn';
+        });
+ 
+        // Aplicar / quitar atenuado en marcadores
+        marcadoresMapa.forEach(marker => {
+            const puesto = marker._puestoData;
+            if (!puesto) return;
+            let visible = true;
+            if (tipo === 'armado')    visible = puesto.armado === true || puesto.armado === 'Si';
+            if (tipo === 'desarmado') visible = !(puesto.armado === true || puesto.armado === 'Si');
+            if (tipo === 'radio')     visible = puesto.radio === true || puesto.radio === 'Si';
+            const el = marker.getElement();
+            if (el) {
+                el.style.opacity      = visible ? '1' : '0.12';
+                el.style.pointerEvents = visible ? '' : 'none';
+            }
+        });
+ 
+        // Contador de visibles
+        const total    = marcadoresMapa.length;
+        if (total === 0) return;
+        const visibles = marcadoresMapa.filter(m => {
+            const p = m._puestoData;
+            if (!p || tipo === 'todos') return true;
+            if (tipo === 'armado')    return p.armado === true || p.armado === 'Si';
+            if (tipo === 'desarmado') return !(p.armado === true || p.armado === 'Si');
+            if (tipo === 'radio')     return p.radio === true  || p.radio  === 'Si';
+        }).length;
+ 
+        // Insertar/actualizar contador junto al botón PDF
+        let counter = document.getElementById('filtro-counter');
+        if (!counter) {
+            counter = document.createElement('span');
+            counter.id = 'filtro-counter';
+            counter.style.cssText = 'font-size:9px;color:#94a3b8;font-weight:700;margin-left:2px;';
+            const pdfBtn = document.querySelector('.pdf-btn');
+            if (pdfBtn) pdfBtn.parentNode.insertBefore(counter, pdfBtn);
+        }
+        counter.textContent = tipo !== 'todos' ? `${visibles} de ${total}` : '';
+    }
+ 
+    // =====================================================================
+    // EXPORTAR PDF
+    // =====================================================================
+    async function exportarPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const prov    = provinciaActual || document.getElementById('prov-nombre').textContent;
+        const detalle = detalleProvincias[prov] || {};
+        const hoy     = new Date();
+        const fechaHoy = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+        const W = 210; // ancho A4 mm
+ 
+        // ── Paleta ──────────────────────────────────────────────
+        const DARK  = [15,  23,  42];
+        const BLUE  = [37, 99,  235];
+        const GREEN = [22, 163, 74];
+        const RED   = [220, 38,  38];
+        const GRAY  = [241,245,249];
+ 
+        // ── Encabezado ──────────────────────────────────────────
+        doc.setFillColor(...DARK);
+        doc.rect(0, 0, W, 28, 'F');
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(16); doc.setFont('helvetica','bold');
+        doc.text('DEFEN CIA. LTDA.', 14, 11);
+        doc.setFontSize(9);  doc.setFont('helvetica','normal');
+        doc.setTextColor(148,163,184);
+        doc.text('Reporte Operativo de Provincia', 14, 17);
+        doc.setFontSize(18); doc.setFont('helvetica','bold');
+        doc.setTextColor(255,255,255);
+        doc.text(prov, 14, 25);
+        doc.setFontSize(8); doc.setFont('helvetica','normal');
+        doc.setTextColor(148,163,184);
+        doc.text(`Generado: ${fechaHoy}`, W - 14, 25, { align:'right' });
+ 
+        let y = 36;
+ 
+        // ── Bloque trámite ───────────────────────────────────────
+        doc.setFillColor(...GRAY);
+        doc.roundedRect(14, y, W-28, 22, 3, 3, 'F');
+        doc.setTextColor(...DARK); doc.setFontSize(7); doc.setFont('helvetica','bold');
+        doc.setTextColor(100,116,139);
+        doc.text('N° TRÁMITE', 20, y+5);
+        doc.text('VIGENCIA', 85, y+5);
+        doc.text('ESTADO', 155, y+5);
+        doc.setTextColor(...DARK); doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text(detalle.tramite || 'Sin registro', 20, y+12);
+ 
+        if (detalle.vigenciaInicio && detalle.vigenciaFin) {
+            const dias = Math.round((new Date(detalle.vigenciaFin) - hoy) / 86400000);
+            doc.text(`${formatFecha(detalle.vigenciaInicio)} → ${formatFecha(detalle.vigenciaFin)}`, 85, y+12);
+            doc.setFontSize(8);
+            doc.setTextColor(dias < 0 ? RED[0] : dias < 90 ? 161 : GREEN[0],
+                             dias < 0 ? RED[1] : dias < 90 ? 98  : GREEN[1],
+                             dias < 0 ? RED[2] : dias < 90 ? 7   : GREEN[2]);
+            doc.text(`${dias < 0 ? 'VENCIDA' : dias + ' días restantes'}`, 85, y+18);
+            doc.setTextColor(...DARK);
+        } else {
+            doc.text(detalle.estadoTramite || '—', 85, y+12);
+        }
+        doc.setTextColor(...DARK); doc.setFontSize(9);
+        const provInfo = data[prov] || {};
+        doc.text(provInfo.estado || '—', 155, y+12);
+        y += 28;
+ 
+        // ── Supervisores ─────────────────────────────────────────
+        if (detalle.supervisores && detalle.supervisores.length > 0) {
+            doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(100,116,139);
+            doc.text('SUPERVISOR(ES)', 14, y);
+            doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...DARK);
+            doc.text(detalle.supervisores.join('  ·  '), 14, y+5);
+            y += 12;
+        }
+ 
+        // ── Proyectos ────────────────────────────────────────────
+        if (detalle.proyectosList && detalle.proyectosList.length > 0) {
+            doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...DARK);
+            doc.text('PROYECTOS ACTIVOS', 14, y); y += 5;
+ 
+            detalle.proyectosList.forEach(p => {
+                const dias  = Math.round((new Date(p.fin) - hoy) / 86400000);
+                const color = dias <= 30 ? RED : dias <= 60 ? [161,98,7] : GREEN;
+ 
+                doc.autoTable({
+                    startY: y,
+                    margin: { left:14, right:14 },
+                    theme: 'plain',
+                    headStyles: {
+                        fillColor: DARK, textColor: [255,255,255],
+                        fontSize: 8, fontStyle: 'bold', cellPadding: 3
+                    },
+                    head: [[
+                        { content: p.nombre, colSpan: 4,
+                          styles: { fillColor: DARK, textColor: [255,255,255], fontSize: 9, fontStyle:'bold' } }
+                    ]],
+                    body: [[
+                        { content: `Guardia(s): ${p.guardias}`,  styles:{fontSize:8} },
+                        { content: `Arma(s): ${p.armas}`,        styles:{fontSize:8} },
+                        { content: `Puesto(s): ${p.puestos??'—'}`,styles:{fontSize:8} },
+                        { content: `Finaliza: ${p.fin ? formatFecha(p.fin) : '—'}  (${dias<0?'VENCIDO':dias+'d'})`,
+                          styles:{fontSize:8, textColor: color} }
+                    ],
+                    // Supervisores del proyecto
+                    ...(p.supervisores && p.supervisores.length > 0 ? [[
+                        { content:`Supervisor(es): ${p.supervisores.join(', ')}`, colSpan:4,
+                          styles:{fontSize:8, textColor:[71,85,105]} }
+                    ]] : [])],
+                    styles: { cellPadding:2.5, lineColor:[226,232,240], lineWidth:0.3 },
+                    columnStyles: { 0:{cellWidth:40},1:{cellWidth:30},2:{cellWidth:32},3:{cellWidth:'auto'} }
+                });
+                y = doc.lastAutoTable.finalY + 4;
+ 
+                // Puestos del proyecto con coordenadas
+                const puestosProyecto = (puestosData[prov] || {})[p.nombre] || [];
+                if (puestosProyecto.length > 0) {
+                    doc.autoTable({
+                        startY: y,
+                        margin: { left:18, right:14 },
+                        theme: 'striped',
+                        headStyles: { fillColor:[71,85,105], textColor:[255,255,255], fontSize:7, cellPadding:2 },
+                        head: [['Puesto','Guardia(s)','Tipo','Armado','Radio','Turno/Días']],
+                        body: puestosProyecto.map(pu => {
+                            const gs = Array.isArray(pu.guardias)
+                                ? pu.guardias
+                                : (pu.guardia||'').split(',').map(g=>g.trim()).filter(Boolean);
+                            return [
+                                pu.nombre,
+                                gs.join('\n'),
+                                pu.tipo || '—',
+                                pu.armado ? `Sí\n${pu.arma||''}` : 'No',
+                                pu.radio  ? `Sí\n${pu.radio_info||''}` : 'No',
+                                `${pu.turno||'—'}\n${pu.dias||''}`
+                            ];
+                        }),
+                        styles: { fontSize:7, cellPadding:2, overflow:'linebreak' },
+                        columnStyles: {
+                            0:{cellWidth:35}, 1:{cellWidth:38}, 2:{cellWidth:18},
+                            3:{cellWidth:22}, 4:{cellWidth:28}, 5:{cellWidth:'auto'}
+                        }
+                    });
+                    y = doc.lastAutoTable.finalY + 4;
+                }
+ 
+                if (y > 260) { doc.addPage(); y = 20; }
+            });
+        }
+ 
+        // ── Pie de página en todas las páginas ───────────────────
+        const totalPag = doc.getNumberOfPages();
+        for (let i = 1; i <= totalPag; i++) {
+            doc.setPage(i);
+            doc.setFillColor(...DARK);
+            doc.rect(0, 287, W, 10, 'F');
+            doc.setFontSize(7); doc.setTextColor(148,163,184);
+            doc.text('DEFEN CIA. LTDA. · Documento confidencial · Uso interno', 14, 293);
+            doc.text(`Página ${i} de ${totalPag}`, W-14, 293, { align:'right' });
+        }
+ 
+        doc.save(`Reporte_${prov}_${fechaHoy.replace(/\//g,'-')}.pdf`);
+    }
+
     function cerrarVistaProvincia() {
         document.getElementById('prov-modal').classList.remove('open');
         if (provMap) { provMap.remove(); provMap = null; }
         limpiarMarcadores();
+        filtroActivo = 'todos';
+        ['todos','armado','desarmado','radio'].forEach(t => {
+            const b = document.getElementById(`f-${t}`);
+            if (b) b.className = `filtro-btn${t==='todos' ? ' on-todos' : ''}`;
+        });
     }
 
     // Cerrar con Escape
@@ -1491,6 +1760,10 @@
         if (e.key === 'Escape') cerrarVistaProvincia();
     });
     </script>
+
+    <!-- jsPDF + AutoTable para exportar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
     <!-- ================================================================
          MODAL — Vista de Provincia con Mapa Interactivo (Responsivo)
@@ -1511,16 +1784,28 @@
                         <p class="text-slate-400 text-[8px] font-bold uppercase tracking-widest hidden sm:block">Vista de Provincia · Puestos Operativos</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    <span class="hidden sm:flex items-center gap-1 text-[9px] font-bold text-slate-400">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>Armado
-                    </span>
-                    <span class="hidden sm:flex items-center gap-1 text-[9px] font-bold text-slate-400">
-                        <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>Desarmado
-                    </span>
-                    <button onclick="cerrarVistaProvincia()"
-                            class="text-slate-400 hover:text-white text-xl leading-none p-1 rounded-lg hover:bg-white/10 transition-colors ml-1">✕</button>
-                </div>
+                <button onclick="cerrarVistaProvincia()"
+                        class="text-slate-400 hover:text-white text-xl leading-none p-1 rounded-lg hover:bg-white/10 transition-colors ml-2">✕</button>
+            </div>
+
+            <!-- Barra de filtros + botón PDF -->
+            <div id="filtros-bar">
+                <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider mr-1 hidden sm:inline">Filtrar:</span>
+                <button class="filtro-btn on-todos" id="f-todos"     onclick="aplicarFiltro('todos')">
+                    ◉ Todos
+                </button>
+                <button class="filtro-btn" id="f-armado"    onclick="aplicarFiltro('armado')">
+                    🔫 Armados
+                </button>
+                <button class="filtro-btn" id="f-desarmado" onclick="aplicarFiltro('desarmado')">
+                    👮 Desarmados
+                </button>
+                <button class="filtro-btn" id="f-radio"     onclick="aplicarFiltro('radio')">
+                    📻 Con radio
+                </button>
+                <button class="pdf-btn" onclick="exportarPDF()" title="Exportar reporte PDF de esta provincia">
+                    ⬇️ PDF
+                </button>
             </div>
 
             <!-- Body: mapa + sidebar (responsivo) -->
@@ -1532,15 +1817,6 @@
                 <!-- Sidebar -->
                 <div id="prov-sidebar" class="custom-scrollbar">
                     <div class="p-3">
-                        <!-- Leyenda móvil -->
-                        <div class="flex gap-3 mb-3 sm:hidden">
-                            <span class="flex items-center gap-1 text-[9px] font-bold text-slate-500">
-                                <span class="w-2 h-2 rounded-full bg-red-500"></span>Armado
-                            </span>
-                            <span class="flex items-center gap-1 text-[9px] font-bold text-slate-500">
-                                <span class="w-2 h-2 rounded-full bg-green-500"></span>Desarmado
-                            </span>
-                        </div>
                         <!-- Hint -->
                         <p class="text-[9px] text-slate-400 font-medium mb-2">Toca un proyecto para ver sus puestos</p>
                         <!-- Lista de acordeones -->

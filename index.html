@@ -1034,10 +1034,16 @@
             ? supsProv.map(s => `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full">👤 ${s}</span>`).join('')
             : `<span class="text-[11px] font-bold text-slate-400 italic">Sin supervisor asignado</span>`;
 
-        // ── Proyectos ──
-        const tieneProy = detalle.proyectosList && detalle.proyectosList.length > 0;
+        // ── Proyectos — usar solo los que pasan el filtro activo ──
+        const todosNeutros   = Object.values(filtrosActivos).every(v => v === 'todos');
+        const totFiltrados   = calcTotalesFiltrados(nombre);
+        const listaProy      = todosNeutros ? (detalle.proyectosList || []) : totFiltrados.proyectosList;
+        const totalProv      = detalle.proyectosList ? detalle.proyectosList.length : 0;
+        const hayFiltroActivo = !todosNeutros && totalProv !== listaProy.length;
+
+        const tieneProy = listaProy.length > 0;
         const proyectosHTML = tieneProy
-            ? detalle.proyectosList.map(p => {
+            ? listaProy.map(p => {
                 const dias = diasRestantes(p.fin);
                 const al   = alertaProyecto(dias);
                 const supsP = p.supervisores && p.supervisores.length > 0
@@ -1059,13 +1065,20 @@
                     <div class="text-[10px] text-slate-400 font-medium">${al.desc}</div>
                 </div>`;
             }).join('')
-            : `<div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[12px] text-slate-400 italic">Sin proyectos activos en esta provincia.</div>`;
+            : `<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-700 font-semibold">
+                ${hayFiltroActivo
+                    ? `⚙️ Ningún proyecto de esta provincia cumple el filtro activo. <button onclick="resetearFiltros()" class="underline ml-1">Limpiar filtros</button>`
+                    : 'Sin proyectos activos en esta provincia.'}
+               </div>`;
 
         panel.innerHTML = `
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h3 class="text-lg font-black text-slate-900 leading-tight">📍 ${nombre}</h3>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">${prov.tipo} · ${prov.estado}</p>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">${prov.tipo} · ${prov.estado}</p>
+                        ${hayFiltroActivo ? `<span class="text-[8px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full">⚙️ Filtro activo · ${listaProy.length} de ${totalProv} proy.</span>` : ''}
+                    </div>
                 </div>
                 <div class="flex items-center gap-2">
                     ${puestosData[nombre] ? `
@@ -1230,18 +1243,18 @@
                     <p class="text-[9px] font-bold text-slate-400 uppercase">${info.estado}</p>
                 </div>
                 ${info.proyectos > 0
-                    ? `<span class="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full">${info.proyectos} PROY.</span>`
+                    ? `<span class="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full card-proy-badge-${cleanId}">${info.proyectos} PROY.</span>`
                     : ''}
             </div>
             ${info.proyectos > 0 ? `
             <div class="grid grid-cols-2 gap-2 mt-2 text-[10px]">
                 <div class="flex justify-between border-b border-slate-100 pb-1">
                     <span class="text-slate-400 font-bold uppercase">Arma(s)</span>
-                    <span class="font-black text-slate-700">${info.armas}</span>
+                    <span class="font-black text-slate-700 card-armas-${cleanId}">${info.armas}</span>
                 </div>
                 <div class="flex justify-between border-b border-slate-100 pb-1">
                     <span class="text-slate-400 font-bold uppercase">Guardia(s)</span>
-                    <span class="font-black text-blue-600">${info.guardias}</span>
+                    <span class="font-black text-blue-600 card-guardias-${cleanId}">${info.guardias}</span>
                 </div>
             </div>` : `<p class="text-[9px] text-slate-400 mt-1 font-medium">→ Ver trámite</p>`}
         `;
@@ -1268,16 +1281,105 @@
         card.classList.add('card-selected');
     }
 
+    // =====================================================================
+    // HELPER: calcular totales de una provincia SEGÚN FILTROS ACTIVOS
+    // Devuelve {guardias, armas, puestos, proyectos, proyectosList}
+    // =====================================================================
+    function calcTotalesFiltrados(nombre) {
+        const detalle = detalleProvincias[nombre];
+        if (!detalle || !detalle.proyectosList) return { guardias:0, armas:0, puestos:0, proyectos:0, proyectosList:[] };
+
+        const todosNeutros = Object.values(filtrosActivos).every(v => v === 'todos');
+        const fj = filtrosActivos.jornada;
+        const fa = filtrosActivos.arma;
+        const fr = filtrosActivos.radio;
+        const fv = filtrosActivos.vence;
+
+        // Filtrar proyectos según vencimiento
+        let proysFiltrados = detalle.proyectosList.filter(p => {
+            if (fv === 'todos') return true;
+            const d = diasRestantes(p.fin);
+            if (fv === 'critico') return d <= 30;
+            if (fv === 'alerta')  return d > 30 && d <= 60;
+            if (fv === 'ok')      return d > 60;
+            return true;
+        });
+
+        // Si hay filtros de puesto (jornada/arma/radio), filtrar proyectos que tengan
+        // al menos un puesto que los cumpla
+        if (fj !== 'todos' || fa !== 'todos' || fr !== 'todos') {
+            const puestosP = Object.entries(puestosData[nombre] || {});
+            proysFiltrados = proysFiltrados.filter(p => {
+                const puestosProyecto = puestosP
+                    .find(([k]) => k.toUpperCase() === p.nombre.toUpperCase());
+                if (!puestosProyecto) return false;
+                return puestosProyecto[1].some(pu => {
+                    if (fj !== 'todos') {
+                        const tipo = (pu.tipo || '').toLowerCase().replace(/\s/g,'');
+                        if (!tipo.includes(fj)) return false;
+                    }
+                    const armado   = pu.armado === true || String(pu.armado).toLowerCase() === 'si';
+                    const conRadio = pu.radio  === true || String(pu.radio).toLowerCase()  === 'si';
+                    if (fa === 'armado'    && !armado)   return false;
+                    if (fa === 'desarmado' &&  armado)   return false;
+                    if (fr === 'conradio'  && !conRadio) return false;
+                    if (fr === 'sinradio'  &&  conRadio) return false;
+                    return true;
+                });
+            });
+        }
+
+        // Calcular totales SOLO de proyectos filtrados
+        let g=0, a=0, pu=0;
+        proysFiltrados.forEach(p => {
+            g  += Number(p.guardias) || 0;
+            a  += Number(p.armas)    || 0;
+            pu += Number(p.puestos)  || 0;
+        });
+
+        return { guardias:g, armas:a, puestos:pu, proyectos:proysFiltrados.length, proyectosList:proysFiltrados };
+    }
+
+    // =====================================================================
+    // Filtrar puestos de un proyecto según filtros activos
+    // =====================================================================
+    function puestosFiltrados(nombre, proyectoNombre) {
+        const todos = (puestosData[nombre] || {})[proyectoNombre] || [];
+        const fj = filtrosActivos.jornada;
+        const fa = filtrosActivos.arma;
+        const fr = filtrosActivos.radio;
+        if (fj === 'todos' && fa === 'todos' && fr === 'todos') return todos;
+        return todos.filter(pu => {
+            if (fj !== 'todos') {
+                const tipo = (pu.tipo||'').toLowerCase().replace(/\s/g,'');
+                if (!tipo.includes(fj)) return false;
+            }
+            const armado   = pu.armado === true || String(pu.armado).toLowerCase() === 'si';
+            const conRadio = pu.radio  === true || String(pu.radio).toLowerCase()  === 'si';
+            if (fa === 'armado'    && !armado)   return false;
+            if (fa === 'desarmado' &&  armado)   return false;
+            if (fr === 'conradio'  && !conRadio) return false;
+            if (fr === 'sinradio'  &&  conRadio) return false;
+            return true;
+        });
+    }
+
     function showTooltip(e, name, info) {
+        // Usar totales filtrados en el tooltip
+        const tot = calcTotalesFiltrados(name);
+        const hayFiltro = !Object.values(filtrosActivos).every(v => v === 'todos');
+
         tooltip.style.display = 'block';
         tooltip.innerHTML = `
             <div class="text-[9px] font-bold text-blue-400 uppercase mb-1">${info.tipo}</div>
             <div class="text-sm font-black border-b border-white/10 pb-2 mb-2">${name}</div>
+            ${hayFiltro ? `<div class="text-[8px] text-amber-400 font-bold mb-2 flex items-center gap-1">⚙️ Mostrando datos filtrados</div>` : ''}
             <div class="grid grid-cols-2 gap-3 text-[11px]">
-                <div><div class="text-slate-400 text-[9px] uppercase">Puesto(s)</div><div class="font-bold">${info.puestos}</div></div>
-                <div><div class="text-slate-400 text-[9px] uppercase">Guardia(s)</div><div class="font-bold text-blue-400">${info.guardias}</div></div>
-                <div><div class="text-slate-400 text-[9px] uppercase">Proyecto(s)</div><div class="font-bold">${info.proyectos}</div></div>
-                <div><div class="text-slate-400 text-[9px] uppercase">Arma(s)</div><div class="font-bold text-green-400">${info.armas}</div></div>            </div>
+                <div><div class="text-slate-400 text-[9px] uppercase">Puesto(s)</div><div class="font-bold">${tot.puestos}</div></div>
+                <div><div class="text-slate-400 text-[9px] uppercase">Guardia(s)</div><div class="font-bold text-blue-400">${tot.guardias}</div></div>
+                <div><div class="text-slate-400 text-[9px] uppercase">Proyecto(s)</div><div class="font-bold">${tot.proyectos}</div></div>
+                <div><div class="text-slate-400 text-[9px] uppercase">Arma(s)</div><div class="font-bold text-green-400">${tot.armas}</div></div>
+            </div>
             <div class="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300 uppercase">
                 Estado: <span class="${info.estado==='VIGENTE'?'text-green-400':'text-amber-400'} font-bold">${info.estado}</span>
             </div>
@@ -1397,7 +1499,20 @@
         if (!detalle || !detalle.proyectosList || detalle.proyectosList.length === 0) {
             sidebar.innerHTML = '<p class="text-xs text-slate-400 px-1">Esta provincia no tiene proyectos registrados.</p>';
         } else {
-            detalle.proyectosList.forEach((p, idx) => sidebar.appendChild(crearAcordeonProyecto(nombre, p, idx)));
+            // Respetar filtros globales activos
+            const todosN    = Object.values(filtrosActivos).every(v => v === 'todos');
+            const totFilt   = calcTotalesFiltrados(nombre);
+            const listaMapa = todosN ? detalle.proyectosList : totFilt.proyectosList;
+
+            if (listaMapa.length === 0) {
+                sidebar.innerHTML = `<p class="text-xs text-amber-600 font-bold px-1">⚙️ Ningún proyecto cumple el filtro activo.</p>
+                    <button onclick="resetearFiltros();abrirVistaProvincia('${nombre}')" class="text-[10px] text-blue-600 underline mt-1 px-1">Limpiar filtros y ver todos</button>`;
+            } else {
+                if (!todosN) {
+                    sidebar.innerHTML = `<p class="text-[9px] text-amber-600 font-bold px-1 mb-2">⚙️ Filtro activo: mostrando ${listaMapa.length} de ${detalle.proyectosList.length} proyectos</p>`;
+                }
+                listaMapa.forEach((p, idx) => sidebar.appendChild(crearAcordeonProyecto(nombre, p, idx)));
+            }
         }
 
         filtroActivo = 'todos';
@@ -1409,7 +1524,8 @@
     function crearAcordeonProyecto(provincia, proyecto, idx) {
         const dias    = diasRestantes(proyecto.fin);
         const al      = alertaProyecto(dias);
-        const puestos = (puestosData[provincia] || {})[proyecto.nombre] || [];
+        // Usar puestos filtrados según filtros globales
+        const puestos = puestosFiltrados(provincia, proyecto.nombre);
 
         const wrap   = document.createElement('div');
         wrap.className = 'acord-proyecto';
@@ -2026,10 +2142,31 @@
             }
             if (card) {
                 card.style.opacity = pasa ? '1' : '0.3';
+
+                // Actualizar totales en la tarjeta con valores filtrados
+                if (data[nombre].proyectos > 0) {
+                    const tot = calcTotalesFiltrados(nombre);
+                    const elA = card.querySelector(`.card-armas-${cleanId}`);
+                    const elG = card.querySelector(`.card-guardias-${cleanId}`);
+                    const elB = card.querySelector(`.card-proy-badge-${cleanId}`);
+                    if (elA) elA.textContent = tot.armas;
+                    if (elG) elG.textContent = tot.guardias;
+                    if (elB) elB.textContent = `${tot.proyectos} PROY.`;
+                }
             }
         });
 
         actualizarResumenFiltro();
+
+        // Si hay un panel de detalle abierto, refrescarlo con los datos filtrados
+        const panel = document.getElementById('detail-panel');
+        if (panel && panel.classList.contains('visible')) {
+            const titulo = panel.querySelector('h3');
+            if (titulo) {
+                const nombreProv = titulo.textContent.replace('📍','').trim();
+                if (nombreProv && data[nombreProv]) renderDetailPanel(nombreProv);
+            }
+        }
     }
 
     function actualizarResumenFiltro() {

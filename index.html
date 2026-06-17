@@ -595,7 +595,8 @@
     // =====================================================================
     let data              = {};
     let detalleProvincias = {};
-    let armamento         = { rastrillo: null, perdida: null, confiscada: null, global: null };
+    let armamento         = { global:414, enCampo:0, rastrillo:0, perdida:1, confiscada:1 };
+    let armamentoDetalle  = [];   // inventario por arma individual
 
     // =====================================================================
     // CARGA DINÁMICA DESDE GOOGLE SHEETS
@@ -644,12 +645,19 @@
         if (json.__armamento__) {
             const a = json.__armamento__;
             armamento = {
+                global:     Number(a.global)     || 0,
+                enCampo:    Number(a.enCampo)    || 0,
                 rastrillo:  Number(a.rastrillo)  || 0,
                 perdida:    Number(a.perdida)     || 0,
-                confiscada: Number(a.confiscada)  || 0,
-                global:     Number(a.global)      || 0
+                confiscada: Number(a.confiscada) || 0
             };
             delete json.__armamento__;
+        }
+
+        // ── Armamento detalle ──
+        if (json.__armamento_detalle__) {
+            armamentoDetalle = json.__armamento_detalle__;
+            delete json.__armamento_detalle__;
         }
 
         // ── Puestos: indexar por provincia → proyecto → array ──
@@ -1151,19 +1159,15 @@
         document.getElementById('total-proyectos').innerText  = totals.Pr;
         document.getElementById('total-provincias').innerText = totals.Prov;
 
-        // Resumen armamento (desde la hoja "armamento" vía API, o valores locales)
-        const enCampo = totals.A;
-        const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val !== null ? val : '—'; };
-        set('armas-operativas-tbl', enCampo);
-        set('armas-rastrillo',   armamento.rastrillo);
-        set('armas-perdida',     armamento.perdida);
-        set('armas-confiscada',  armamento.confiscada);
-        // Global = todas las categorías sumadas
-        const globalCalc = enCampo
-            + (armamento.rastrillo  || 0)
-            + (armamento.perdida    || 0)
-            + (armamento.confiscada || 0);
-        set('armas-global', armamento.global !== null ? armamento.global : globalCalc);
+        // Resumen armamento — todos los valores calculados automáticamente
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val !== null && val !== undefined ? val : '—'; };
+        set('armas-operativas-tbl', armamento.enCampo  ?? totals.A);
+        set('armas-rastrillo',      armamento.rastrillo);
+        set('armas-perdida',        armamento.perdida);
+        set('armas-confiscada',     armamento.confiscada);
+        set('armas-global',         armamento.global);
+        // En campo en resumen ejecutivo = suma real de proyectosList
+        document.getElementById('total-armas').innerText = totals.A;
     }
 
     function markerColor(info) {
@@ -2049,17 +2053,33 @@
             }
         });
 
-        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
         set('fr-provincias', provs);
         set('fr-guardias',   guardias);
         set('fr-armas',      armas);
         set('fr-proyectos',  proyectos);
 
-        // También actualizar resumen ejecutivo principal
+        // Actualizar resumen ejecutivo principal con valores filtrados
         document.getElementById('total-guardias').innerText   = guardias.toLocaleString();
         document.getElementById('total-armas').innerText      = armas;
         document.getElementById('total-proyectos').innerText  = proyectos;
         document.getElementById('total-provincias').innerText = provs;
+
+        // Actualizar "En Campo" en resumen armamento con valor filtrado
+        const elCampo = document.getElementById('armas-operativas-tbl');
+        if (elCampo) elCampo.innerText = armas;
+
+        // Rastrillo dinámico = Global - ArmasFiltradas - Perdida - Confiscada
+        if (!todosNeutros) {
+            const rastrilloDin = (armamento.global||0) - armas - (armamento.perdida||0) - (armamento.confiscada||0);
+            const elRas = document.getElementById('armas-rastrillo');
+            if (elRas) elRas.innerText = rastrilloDin;
+        } else {
+            // Restaurar valores reales
+            const elRas = document.getElementById('armas-rastrillo');
+            if (elRas) elRas.innerText = armamento.rastrillo ?? '—';
+            if (elCampo) elCampo.innerText = armamento.enCampo ?? armas;
+        }
     }
 
     function actualizarBadgeFab() {
@@ -2209,39 +2229,62 @@
         if (inc.armamento) {
             doc.addPage(); encabezado('Inventario de Armamento — Nacional'); y = 30;
 
-            const filas = [];
-            provsActivas.forEach(n => {
-                const det = detalleProvincias[n];
-                if (!det || !det.proyectosList) return;
-                det.proyectosList.forEach(p => {
-                    if (p.armas > 0) {
-                        const puestosP = Object.values(puestosData[n] || {}).flat()
-                            .filter(pu => (pu.proyecto || p.nombre) === p.nombre && pu.armado);
-                        filas.push([n, p.nombre, p.armas,
-                            puestosP.map(pu => pu.arma || 'Arma letal').join('\n') || '—']);
-                    }
-                });
+            // KPIs de armamento
+            const kpisArm = [
+                ['Global',      armamento.global||0,      [15,23,42]],
+                ['En Campo',    armamento.enCampo||0,     RED],
+                ['Rastrillo',   armamento.rastrillo||0,   [37,99,235]],
+                ['Pérdida/Rob.',armamento.perdida||0,     [220,38,38]],
+                ['Confiscada',  armamento.confiscada||0,  [217,119,6]],
+            ];
+            const bwA = (W-28)/5 - 2;
+            kpisArm.forEach(([lbl,val,col],i) => {
+                const x = 14 + i*(bwA+2.5);
+                doc.setFillColor(...GRAY); doc.roundedRect(x,y,bwA,16,2,2,'F');
+                doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(...col);
+                doc.text(String(val), x+bwA/2, y+10, {align:'center'});
+                doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+                doc.text(lbl.toUpperCase(), x+bwA/2, y+14.5, {align:'center'});
             });
+            y += 22;
 
-            const totalArmas = filas.reduce((s,f) => s+Number(f[2]),0);
-            // Bloque resumen armamento
-            doc.setFillColor(...GRAY); doc.roundedRect(14, y, W-28, 14, 2, 2, 'F');
-            doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
-            doc.text(`Total armas en campo: ${totalArmas}`, W/2, y+9, {align:'center'});
-            y += 18;
+            // Usar armamento_detalle si está disponible
+            if (armamentoDetalle && armamentoDetalle.length > 0) {
+                doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...DARK);
+                doc.text('Inventario detallado por arma:', 14, y); y += 5;
 
-            if (filas.length > 0) {
                 doc.autoTable({
                     startY:y, margin:{left:14,right:14},
-                    head:[['Provincia','Proyecto','Arma(s)','Detalle']],
-                    body: filas,
+                    head:[['Provincia','Proyecto','Puesto','Serie','Tipo','Modalidad','Clase']],
+                    body: armamentoDetalle
+                        .filter(a => provsActivas.includes(a.provincia) || provsActivas.length===0)
+                        .map(a => [a.provincia||'—', a.proyecto||'—', a.puesto||'—',
+                                   a.serie||'—', a.tipo||'—', a.modalidad||'—', a.clase||'—']),
                     headStyles:{fillColor:RED,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
-                    bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
-                    columnStyles:{2:{halign:'center',cellWidth:16}}
+                    bodyStyles:{fontSize:6.5,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                    columnStyles:{6:{halign:'center'}}
                 });
             } else {
-                doc.setFontSize(9); doc.setTextColor(100,116,139);
-                doc.text('No hay armas registradas para los filtros seleccionados.',14,y+8);
+                // Fallback: resumen por proyecto
+                const filas = [];
+                provsActivas.forEach(n => {
+                    const det = detalleProvincias[n];
+                    if (!det || !det.proyectosList) return;
+                    det.proyectosList.forEach(p => {
+                        if (p.armas > 0) filas.push([n, p.nombre, p.armas,
+                            '— Completa la hoja armamento_detalle en Excel']);
+                    });
+                });
+                if (filas.length > 0) {
+                    doc.autoTable({
+                        startY:y, margin:{left:14,right:14},
+                        head:[['Provincia','Proyecto','Arma(s)','Detalle']],
+                        body: filas,
+                        headStyles:{fillColor:RED,textColor:[255,255,255],fontSize:7,fontStyle:'bold',cellPadding:2.5},
+                        bodyStyles:{fontSize:7,cellPadding:2}, alternateRowStyles:{fillColor:LGRAY},
+                        columnStyles:{2:{halign:'center',cellWidth:16}}
+                    });
+                }
             }
         }
 

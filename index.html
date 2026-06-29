@@ -91,6 +91,10 @@
             0% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
             100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
         }
+        @keyframes pulseGreen {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
         .tooltip {
             position: fixed;
             pointer-events: none;
@@ -597,6 +601,7 @@
     let detalleProvincias = {};
     let armamento         = { global:414, enCampo:0, rastrillo:0, perdida:1, confiscada:1 };
     let armamentoDetalle  = [];   // inventario por arma individual
+    let asistenciaHoy     = {};   // { "PUESTO": { enTurno, turnoTipo, rotacion } } — desde Zoho/Excel
 
     // =====================================================================
     // CARGA DINÁMICA DESDE GOOGLE SHEETS
@@ -660,6 +665,12 @@
             delete json.__armamento_detalle__;
         }
 
+        // ── Asistencia: quién está de turno HOY por puesto ──
+        if (json.__asistencia__) {
+            asistenciaHoy = json.__asistencia__;
+            delete json.__asistencia__;
+        }
+
         // ── Puestos: indexar por provincia → proyecto → array ──
         if (json.__puestos__) {
             json.__puestos__.forEach(p => {
@@ -668,8 +679,13 @@
                 if (!prov || !proy) return;
                 if (!puestosData[prov]) puestosData[prov] = {};
                 if (!puestosData[prov][proy]) puestosData[prov][proy] = [];
+
+                const nombrePuesto = p.nombre_puesto || p.nombre || '';
+                // Buscar info de asistencia para este puesto (por nombre, case-insensitive)
+                const asistInfo = asistenciaHoy[nombrePuesto.toUpperCase().trim()] || null;
+
                 puestosData[prov][proy].push({
-                    nombre:     p.nombre_puesto || p.nombre || '',
+                    nombre:     nombrePuesto,
                     lat:        Number(p.lat)   || 0,
                     lng:        Number(p.lng)   || 0,
                     tipo:       p.tipo          || '',
@@ -680,7 +696,11 @@
                     radio_info: p.radio_info    || '',
                     turno:      p.turno         || '',
                     dias:       p.dias          || '',
-                    obs:        p.observacion   || p.obs || ''
+                    obs:        p.observacion   || p.obs || '',
+                    // ── Datos en tiempo real desde asistencia ──
+                    enTurnoHoy:  asistInfo ? asistInfo.enTurno   : null,
+                    tipoTurnoHoy: asistInfo ? asistInfo.turnoTipo : null,
+                    rotacionCompleta: asistInfo ? asistInfo.rotacion : null
                 });
             });
             delete json.__puestos__;
@@ -969,6 +989,17 @@
         const hoy  = new Date(); hoy.setHours(0,0,0,0);
         const fin  = new Date(fechaStr); fin.setHours(0,0,0,0);
         return Math.round((fin - hoy) / 86400000);
+    }
+
+    // Ícono según tipo de turno (Diurno/Tarde/Nocturno/24 Horas)
+    function iconoTurno(tipo) {
+        switch (tipo) {
+            case 'Diurno':   return '☀️';
+            case 'Tarde':    return '🌇';
+            case 'Nocturno': return '🌙';
+            case '24 Horas': return '🔄';
+            default:         return '🕐';
+        }
     }
 
     function alertaProyecto(dias) {
@@ -1651,15 +1682,28 @@
             ? puesto.guardias
             : (puesto.guardia || '').split(',').map(g => g.trim()).filter(Boolean);
 
+        const tieneAsistenciaReal = !!puesto.enTurnoHoy;
+
         const guardiasHTML = guardias.length > 1
             ? `<div class="flex flex-col gap-0.5 mt-1">
-                ${guardias.map((g,i) => `
+                ${guardias.map((g) => {
+                    const esHoy = tieneAsistenciaReal && g === puesto.enTurnoHoy;
+                    return `
                     <span class="text-[9px] text-slate-500 font-medium">
-                        👮 <span class="font-bold text-slate-700">${g}</span>
-                        ${i === 0 ? '<span class="text-[8px] bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">Turno actual</span>' : ''}
-                    </span>`).join('')}
+                        ${esHoy ? '🟢' : '👮'} <span class="font-bold ${esHoy?'text-green-700':'text-slate-700'}">${g}</span>
+                        ${esHoy ? '<span class="text-[8px] bg-green-100 text-green-700 font-bold px-1 rounded ml-1">Hoy</span>' : ''}
+                    </span>`;
+                }).join('')}
                </div>`
             : `<p class="text-[9px] text-slate-400 font-medium">👮 ${guardias[0] || '—'} · ${puesto.tipo}</p>`;
+
+        // Badge "En turno hoy" — solo si hay dato real de asistencia
+        const badgeTurnoHoy = tieneAsistenciaReal
+            ? `<div class="flex items-center gap-1 mt-1.5 bg-green-50 border border-green-200 rounded-lg px-2 py-1">
+                   <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" style="animation:pulseGreen 1.5s infinite;"></span>
+                   <span class="text-[9px] font-black text-green-700">EN TURNO: ${puesto.enTurnoHoy}</span>
+               </div>`
+            : '';
 
         card.innerHTML = `
             <div class="flex items-start gap-2">
@@ -1667,6 +1711,7 @@
                 <div class="flex-1 min-w-0">
                     <p class="text-[11px] font-black text-slate-800 leading-tight">${puesto.nombre}</p>
                     ${guardiasHTML}
+                    ${badgeTurnoHoy}
                 </div>
             </div>`;
         card.onclick = () => seleccionarPuesto(puesto, card, idx);
@@ -1719,17 +1764,37 @@
         const marker = L.marker([puesto.lat, puesto.lng], { icon }).addTo(provMap);
         marker._puestoData = puesto;  // ← referencia para los filtros
 
-        // Guardias en el popup
-        const guardiasPopup = guardias.length > 1
-            ? guardias.map((g,i) => `
+        // ── Bloque "EN TURNO HOY" — datos reales desde asistencia (Zoho) ──
+        const tieneAsistenciaReal = !!puesto.enTurnoHoy;
+        const bloqueTurnoHoy = tieneAsistenciaReal ? `
+            <div style="background:#ecfdf5;border:1.5px solid #6ee7b7;border-radius:10px;padding:8px 10px;margin-bottom:2px;">
+                <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#16a34a;display:inline-block;animation:pulseGreen 1.5s infinite;"></span>
+                    <span style="font-size:8px;font-weight:900;color:#15803d;text-transform:uppercase;letter-spacing:0.04em;">En turno ahora</span>
+                </div>
+                <p style="font-size:12px;font-weight:900;color:#14532d;margin:0;">👤 ${puesto.enTurnoHoy}</p>
+                <p style="font-size:9px;font-weight:700;color:#16a34a;margin:2px 0 0;">${iconoTurno(puesto.tipoTurnoHoy)} Turno ${puesto.tipoTurnoHoy}</p>
+            </div>
+        ` : '';
+
+        // Lista de rotación (todos los que cubren el puesto)
+        const listaRotacion = puesto.rotacionCompleta && puesto.rotacionCompleta.length > 0
+            ? puesto.rotacionCompleta
+            : guardias;
+
+        const guardiasPopup = listaRotacion.length > 1
+            ? listaRotacion.map((g) => {
+                const esElDeHoy = tieneAsistenciaReal && g === puesto.enTurnoHoy;
+                return `
                 <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                    <span style="font-size:10px;">👮</span>
-                    <span style="font-size:11px;font-weight:800;color:#1e293b;">${g}</span>
-                    ${i===0 ? '<span style="font-size:8px;background:#dbeafe;color:#1d4ed8;font-weight:700;padding:1px 5px;border-radius:4px;">Turno actual</span>' : ''}
-                </div>`).join('')
+                    <span style="font-size:10px;">${esElDeHoy ? '🟢' : '👮'}</span>
+                    <span style="font-size:11px;font-weight:${esElDeHoy?900:700};color:${esElDeHoy?'#15803d':'#1e293b'};">${g}</span>
+                    ${esElDeHoy ? '<span style="font-size:8px;background:#dcfce7;color:#15803d;font-weight:700;padding:1px 5px;border-radius:4px;">Hoy</span>' : ''}
+                </div>`;
+            }).join('')
             : `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f1f5f9;padding-bottom:6px;">
                     <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Guardia</span>
-                    <span style="font-size:11px;font-weight:800;color:#1e293b;">👮 ${guardias[0] || '—'}</span>
+                    <span style="font-size:11px;font-weight:800;color:#1e293b;">👮 ${listaRotacion[0] || '—'}</span>
                </div>`;
 
         const popup = `
@@ -1739,9 +1804,10 @@
                     <p style="color:rgba(255,255,255,0.75);font-size:9px;font-weight:700;margin:2px 0 0;text-transform:uppercase;">${puesto.tipo} · ${puesto.turno}</p>
                 </div>
                 <div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px;">
-                    ${guardias.length > 1
+                    ${bloqueTurnoHoy}
+                    ${guardias.length > 1 || (puesto.rotacionCompleta && puesto.rotacionCompleta.length > 1)
                         ? `<div style="border-bottom:1px solid #f1f5f9;padding-bottom:8px;">
-                               <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Guardia(s) — ${guardias.length} agente(s)</p>
+                               <p style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Personal asignado al puesto</p>
                                ${guardiasPopup}
                            </div>`
                         : guardiasPopup}

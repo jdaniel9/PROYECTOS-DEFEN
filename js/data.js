@@ -1,414 +1,414 @@
 // ================================================================
-// map.js — Mapa nacional: marcadores, tarjetas, tooltips, panel detalle
+// data.js — Carga de datos desde API + datos locales de respaldo
 // ================================================================
 
-function renderDetailPanel(nombre) {
-    const panel   = document.getElementById('detail-panel');
-    const detalle = detalleProvincias[nombre];
-    const prov    = data[nombre];
+async function cargarDatos() {
+    mostrarCargando(true);
+    let cargadoDesdeAPI = false;
 
-    if (!detalle) {
-        panel.innerHTML = `
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-base font-black text-slate-800">📍 ${nombre}</h3>
-                <button onclick="closeDetail()" class="text-slate-400 hover:text-slate-700 text-xs font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors">✕ Cerrar</button>
-            </div>
-            <p class="text-sm text-slate-500 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
-                Esta provincia aún no tiene información cargada en el sistema.
-            </p>`;
-        panel.classList.add('visible');
-        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return;
+    if (APPS_SCRIPT_URL !== "PEGA_AQUI_TU_URL") {
+        try {
+            const res  = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
+            const json = await res.json();
+            procesarDatosAPI(json);
+            cargadoDesdeAPI = true;
+            console.log("✅ Datos cargados desde Google Sheets");
+        } catch (e) {
+            console.warn("⚠️ Usando datos locales:", e.message);
+        }
     }
 
-    // ── Trámite ──
-    const enTramite      = !detalle.vigenciaFin || !detalle.vigenciaInicio;
-    const sinRegistro    = !detalle.tramite;
-    const diasTramite    = enTramite ? null : diasRestantes(detalle.vigenciaFin);
-    const alTramite      = (!enTramite && diasTramite !== null) ? alertaVigencia(diasTramite) : null;
+    if (!cargadoDesdeAPI) {
+        data              = DATOS_LOCALES_data;
+        detalleProvincias = DATOS_LOCALES_detalle;
+        armamento         = { rastrillo: 289, perdida: 1, confiscada: 1, global: 414, enCampo: 0, enTransito: 0 };
+        puestosData       = PUESTOS_LOCALES;
+    }
 
-    // Etiqueta dinámica: "AGENCIA VIGENTE" / "SUCURSAL EN TRÁMITE" / etc.
-    const tipoLabel   = (prov.tipo || 'AGENCIA').toUpperCase();
-    const estadoLabel = sinRegistro ? 'SIN REGISTRO' : (enTramite ? 'EN TRÁMITE' : 'VIGENTE');
-    const labelVigencia = `${tipoLabel} ${estadoLabel}`;
-
-    const tramiteHTML = sinRegistro
-        ? `<p class="text-sm font-bold text-slate-400 italic">Sin registro de trámite</p>`
-        : `<div class="flex items-center justify-between gap-2">
-               <p class="font-black text-slate-900 text-sm" style="font-family:'DM Mono',monospace">${detalle.tramite}</p>
-               ${detalle.urlCertificado ? `
-               <a href="${detalle.urlCertificado}" target="_blank" rel="noopener"
-                  class="flex-shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black px-2 py-1 rounded-lg transition-colors"
-                  title="Descargar certificado del trámite">
-                   ⬇️ PDF
-               </a>` : ''}
-           </div>`;
-
-    const vigenciaHTML = sinRegistro
-        ? `<p class="text-slate-400 text-[11px] italic">Sin datos de vigencia</p>`
-        : enTramite
-            ? `<p class="text-[11px] font-black text-amber-600">🕐 ${labelVigencia}</p>
-               <p class="text-[10px] text-slate-400 mt-0.5">${detalle.estadoTramite || 'Registro de Inspección'}</p>`
-            : `<p class="text-[11px] font-black text-green-600">✅ ${labelVigencia}</p>
-               <p class="text-[11px] text-slate-600 font-semibold mt-0.5">${formatFecha(detalle.vigenciaInicio)} → ${formatFecha(detalle.vigenciaFin)}</p>
-               <p class="text-[11px] font-black mt-1 ${alTramite.cls}">${alTramite.label}</p>`;
-
-    // ── Supervisores provincia ──
-    const supsProv     = detalle.supervisores || [];
-    const supsProvHTML = supsProv.length > 0
-        ? supsProv.map(s => `<span class="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full">👤 ${s}</span>`).join('')
-        : `<span class="text-[11px] font-bold text-slate-400 italic">Sin supervisor asignado</span>`;
-
-    // ── Proyectos — usar solo los que pasan el filtro activo ──
-    const todosNeutros   = Object.values(filtrosActivos).every(v => v === 'todos');
-    const totFiltrados   = calcTotalesFiltrados(nombre);
-    const listaProy      = todosNeutros ? (detalle.proyectosList || []) : totFiltrados.proyectosList;
-    const totalProv      = detalle.proyectosList ? detalle.proyectosList.length : 0;
-    const hayFiltroActivo = !todosNeutros && totalProv !== listaProy.length;
-
-    const tieneProy = listaProy.length > 0;
-    const proyectosHTML = tieneProy
-        ? listaProy.map(p => {
-            const dias = diasRestantes(p.fin);
-            const al   = alertaProyecto(dias);
-            const supsP = p.supervisores && p.supervisores.length > 0
-                ? `<div class="flex flex-wrap gap-1 mt-1">${p.supervisores.map(s => `<span class="text-[9px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">👤 ${s}</span>`).join('')}</div>`
-                : '';
-
-            // ── Puestos de este proyecto (desplegable) ──
-            const puestosProy = (puestosData[nombre] || {})[p.nombre] || [];
-            const idSafe = `pu-${nombre}-${p.nombre}`.replace(/[^a-zA-Z0-9]/g,'');
-            const puestosListHTML = puestosProy.length > 0
-                ? puestosProy.map(pu => {
-                    const gs = Array.isArray(pu.guardias) ? pu.guardias : (pu.guardia||'').split(',').map(g=>g.trim()).filter(Boolean);
-                    const agentesHTML = gs.length > 0
-                        ? gs.map(g => `<span class="block text-[9px] text-slate-500 font-semibold">👤 ${g}</span>`).join('')
-                        : `<span class="block text-[9px] text-slate-400 italic">Sin agentes asignados</span>`;
-
-                    return `
-                    <div class="flex flex-col gap-1.5 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100">
-                        <div class="flex items-start justify-between gap-2">
-                            <p class="text-[11px] font-black text-slate-700">${pu.nombre}</p>
-                            <span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 flex-shrink-0">${pu.tipo || '—'}</span>
-                        </div>
-                        <div class="flex flex-col gap-0.5">${agentesHTML}</div>
-                        <div class="flex flex-col gap-1 mt-0.5">
-                            ${pu.armado
-                                ? `<div class="flex items-center gap-1.5 bg-red-50 border border-red-100 rounded-md px-2 py-1">
-                                       <span class="text-[8px] font-black text-red-700">🔫 ARMADO</span>
-                                       ${pu.tieneLetal   ? `<span class="text-[7px] font-black bg-red-600 text-white px-1 rounded" title="Arma Letal">AL</span>` : ''}
-                                       ${pu.tieneNoLetal ? `<span class="text-[7px] font-black bg-amber-500 text-white px-1 rounded" title="Arma No Letal">ANL</span>` : ''}
-                                       <span class="text-[9px] text-red-600 font-medium truncate">${pu.arma || 'Sin serie registrada'}</span>
-                                   </div>`
-                                : `<div class="flex items-center gap-1.5"><span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">Sin arma</span></div>`}
-                            ${pu.radio
-                                ? `<div class="flex items-center gap-1.5 bg-purple-50 border border-purple-100 rounded-md px-2 py-1">
-                                       <span class="text-[8px] font-black text-purple-700">📻 RADIO</span>
-                                       <span class="text-[9px] text-purple-600 font-medium truncate">${pu.radio_info || 'Sin modelo registrado'}</span>
-                                   </div>`
-                                : `<div class="flex items-center gap-1.5"><span class="text-[8px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">Sin radio</span></div>`}
-                        </div>
-                    </div>`;
-                }).join('')
-                : `<p class="text-[10px] text-slate-400 italic px-1">Sin puestos con coordenadas registradas para este proyecto.</p>`;
-
-            return `
-            <div class="project-row bg-white flex flex-col gap-2 ${p.vacantes > 0 ? 'ring-2 ring-red-300' : ''}">
-                <div class="flex items-start justify-between gap-2 cursor-pointer" onclick="document.getElementById('${idSafe}').classList.toggle('hidden'); this.querySelector('.chev-puestos').classList.toggle('rotate-180')">
-                    <span class="text-sm font-black text-slate-800 leading-tight">${p.nombre}</span>
-                    <div class="flex items-center gap-1.5 flex-shrink-0">
-                        ${p.urlDocumento ? `
-                        <a href="${p.urlDocumento}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-                           class="flex items-center gap-1 bg-slate-700 hover:bg-slate-800 text-white text-[9px] font-black px-2 py-1 rounded-full transition-colors"
-                           title="Descargar OC / Contrato">
-                            ⬇️ OC/CT
-                        </a>` : ''}
-                        <span class="text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${al.cls}">${al.label}</span>
-                        <span class="chev-puestos text-[10px] text-slate-400 transition-transform">▾</span>
-                    </div>
-                </div>
-                ${p.vacantes > 0 ? `
-                <div class="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" style="animation:pulseGreen 1.5s infinite;"></span>
-                    <span class="text-[10px] font-black text-red-700">⚠️ ${p.vacantes} VACANTE${p.vacantes > 1 ? 'S' : ''} SIN CUBRIR</span>
-                </div>` : ''}
-                <div class="flex flex-wrap gap-3 text-[11px] text-slate-500 font-semibold">
-                    <span>👮 ${p.guardias} guardia(s)</span>
-                    <span>🔫 ${p.armas} arma(s)</span>
-                    <span>🏢 ${p.puestos ?? '—'} puesto(s)</span>
-                    <span>📅 Finaliza: ${formatFecha(p.fin)}</span>
-                </div>
-                ${supsP}
-                <div class="text-[10px] text-slate-400 font-medium">${al.desc}</div>
-                <div id="${idSafe}" class="hidden flex flex-col gap-1.5 mt-1 pt-2 border-t border-slate-100">
-                    ${puestosListHTML}
-                </div>
-            </div>`;
-        }).join('')
-        : `<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-700 font-semibold">
-            ${hayFiltroActivo
-                ? `⚙️ Ningún proyecto de esta provincia cumple el filtro activo. <button onclick="resetearFiltros()" class="underline ml-1">Limpiar filtros</button>`
-                : 'Sin proyectos activos en esta provincia.'}
-           </div>`;
-
-    panel.innerHTML = `
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-black text-slate-900 leading-tight">📍 ${nombre}</h3>
-                <div class="flex items-center gap-2 mt-0.5">
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wide">${prov.tipo} · ${prov.estado}</p>
-                    ${hayFiltroActivo ? `<span class="text-[8px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-full">⚙️ Filtro activo · ${listaProy.length} de ${totalProv} proy.</span>` : ''}
-                </div>
-            </div>
-            <div class="flex items-center gap-2">
-                ${puestosData[nombre] ? `
-                <button onclick="abrirVistaProvincia('${nombre}')"
-                        class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black px-3 py-1.5 rounded-xl transition-colors shadow-sm">
-                    🗺️ Ver mapa de puestos
-                </button>` : ''}
-                <button onclick="closeDetail()" class="text-slate-400 hover:text-slate-700 text-xs font-bold px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200">✕ Cerrar</button>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">N° de Trámite</p>
-                ${tramiteHTML}
-            </div>
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Estado</p>
-                ${vigenciaHTML}
-            </div>
-            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Supervisor(es) Provincia</p>
-                <div class="flex flex-wrap gap-1">${supsProvHTML}</div>
-                ${supsProv.length > 0 ? `<p class="text-[9px] text-slate-400 font-medium mt-1">${supsProv.length} asignado(s)</p>` : ''}
-            </div>
-        </div>
-
-        <div>
-            <div class="flex items-center gap-2 mb-2">
-                <h4 class="text-sm font-black text-slate-700">Proyecto(s) Activo(s)</h4>
-                ${tieneProy ? `<div class="flex gap-2 ml-auto text-[9px] font-bold">
-                    <span class="badge-danger px-2 py-0.5 rounded-full">≤30d: acción</span>
-                    <span class="badge-warn  px-2 py-0.5 rounded-full">≤60d: pendiente</span>
-                    <span class="badge-ok    px-2 py-0.5 rounded-full">&gt;60d: ok</span>
-                </div>` : ''}
-            </div>
-            <div class="flex flex-col gap-2">${proyectosHTML}</div>
-        </div>`;
-
-    panel.classList.add('visible');
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    mostrarCargando(false);
+    init();
+    // Activar chips "Todos" por defecto
+    document.querySelectorAll('.chip[data-val="todos"]').forEach(c => c.classList.add('active-blue'));
 }
 
-function closeDetail() {
-    const panel = document.getElementById('detail-panel');
-    panel.classList.remove('visible');
-    panel.innerHTML = '';
-    // Quitar selección visual de tarjetas
-    document.querySelectorAll('.card-selected').forEach(c => c.classList.remove('card-selected'));
+function mostrarCargando(activo) {
+    const el = document.getElementById('loading-overlay');
+    if (el) el.style.display = activo ? 'flex' : 'none';
 }
 
-// =====================================================================
-// MARKERS
-// =====================================================================
-const tooltip       = document.getElementById('tooltip');
-const markersLayer  = document.getElementById('markers-layer');
-const listContainer = document.getElementById('province-list');
+// Procesa JSON de la API → llena data, detalleProvincias, armamento y puestosData
+function procesarDatosAPI(json) {
+    data              = {};
+    detalleProvincias = {};
+    puestosData       = {};
 
-function init() {
-    document.getElementById('markers-layer').innerHTML = '';
-    document.getElementById('province-list').innerHTML = '';
+    // ── Armamento ──
+    if (json.__armamento__) {
+        const a = json.__armamento__;
+        armamento = {
+            global:     Number(a.global)     || 0,
+            enCampo:    Number(a.enCampo)    || 0,
+            enTransito: Number(a.enTransito) || 0,
+            rastrillo:  Number(a.rastrillo)  || 0,
+            perdida:    Number(a.perdida)     || 0,
+            confiscada: Number(a.confiscada) || 0
+        };
+        delete json.__armamento__;
+    }
 
-    // Regenerar los chips de "Tipo de proyecto" según los datos reales cargados
-    renderChipsContrato();
+    // ── Armamento detalle ──
+    if (json.__armamento_detalle__) {
+        armamentoDetalle = json.__armamento_detalle__;
+        delete json.__armamento_detalle__;
+    }
 
-    // Totales calculados desde proyectosList (fuente de verdad)
-    let totals = { G:0, A:0, Pu:0, Pr:0, Prov:0 };
-    Object.keys(data).sort().forEach(name => {
-        const info    = data[name];
-        const detalle = detalleProvincias[name];
-        if (info.proyectos > 0) {
-            if (detalle && detalle.proyectosList && detalle.proyectosList.length > 0) {
-                detalle.proyectosList.forEach(p => {
-                    totals.G  += Number(p.guardias) || 0;
-                    totals.A  += Number(p.armas)    || 0;
-                    totals.Pu += Number(p.puestos)  || 0;
-                });
-            } else {
-                totals.G  += info.guardias;
-                totals.A  += info.armas;
-                totals.Pu += info.puestos;
-            }
-            totals.Pr   += info.proyectos;
-            totals.Prov++;
-        }
-        createMarker(name, info);
-        createListItem(name, info);
+    // ── Radios detalle ──
+    if (json.__radios_detalle__) {
+        radiosDetalle = json.__radios_detalle__;
+        delete json.__radios_detalle__;
+    }
+
+    // ── Asistencia: quién está de turno HOY por puesto ──
+    if (json.__asistencia__) {
+        asistenciaHoy = json.__asistencia__;
+        delete json.__asistencia__;
+    }
+
+    // ── Novedades de personal: ingresos, salidas, faltas ──
+    if (json.__novedades__) {
+        novedadesPersonal = {
+            ingresos: Array.isArray(json.__novedades__.ingresos) ? json.__novedades__.ingresos : [],
+            salidas:  Array.isArray(json.__novedades__.salidas)  ? json.__novedades__.salidas  : [],
+            faltas:   Array.isArray(json.__novedades__.faltas)   ? json.__novedades__.faltas   : []
+        };
+        delete json.__novedades__;
+    }
+
+    // ── Llamados de atención ──
+    if (json.__llamados__) {
+        llamadosAtencion = Array.isArray(json.__llamados__) ? json.__llamados__ : [];
+        delete json.__llamados__;
+    }
+
+    // ── Vacantes a nivel nacional ──
+    if (json.__vacantes_nacional__ !== undefined) {
+        vacantesNacional = Number(json.__vacantes_nacional__) || 0;
+        delete json.__vacantes_nacional__;
+    }
+
+    // ── Puestos: indexar por provincia → proyecto → array ──
+    if (json.__puestos__) {
+        json.__puestos__.forEach(p => {
+            const prov = (p.provincia || '').toUpperCase().trim();
+            const proy = (p.proyecto  || '').toUpperCase().trim();
+            if (!prov || !proy) return;
+            if (!puestosData[prov]) puestosData[prov] = {};
+            if (!puestosData[prov][proy]) puestosData[prov][proy] = [];
+
+            const nombrePuesto = p.nombre_puesto || p.nombre || '';
+            // Buscar info de asistencia para este puesto (por nombre, case-insensitive)
+            const asistInfo = asistenciaHoy[nombrePuesto.toUpperCase().trim()] || null;
+
+            puestosData[prov][proy].push({
+                nombre:     nombrePuesto,
+                lat:        Number(p.lat)   || 0,
+                lng:        Number(p.lng)   || 0,
+                tipo:       p.tipo          || '',
+                guardia:    p.guardia       || '',
+                armado:     (p.armado || '').toLowerCase() === 'si' || p.armado === true,
+                arma:       p.arma          || null,
+                tieneLetal:   p.tieneLetal   === true,
+                tieneNoLetal: p.tieneNoLetal === true,
+                radio:      (p.radio  || '').toLowerCase() === 'si' || p.radio  === true,
+                radio_info: p.radio_info    || '',
+                turno:      p.turno         || '',
+                dias:       p.dias          || '',
+                obs:        p.observacion   || p.obs || '',
+                // ── Datos en tiempo real desde asistencia ──
+                enTurnoHoy:  asistInfo ? asistInfo.enTurno   : null,
+                tipoTurnoHoy: asistInfo ? asistInfo.turnoTipo : null,
+                rotacionCompleta: asistInfo ? asistInfo.rotacion : null
+            });
+        });
+        delete json.__puestos__;
+    }
+
+    // ── Provincias ──
+    Object.keys(json).forEach(nombre => {
+        const p = json[nombre];
+        data[nombre] = {
+            x:         Number(p.x)         || 0,
+            y:         Number(p.y)         || 0,
+            tipo:      p.tipo      || '',
+            estado:    p.estado    || '',
+            cat:       p.cat       || 'none',
+            guardias:  Number(p.guardias)  || 0,
+            armas:     Number(p.armas)     || 0,
+            puestos:   Number(p.puestos)   || 0,
+            proyectos: Number(p.proyectos) || 0
+        };
+        const ti = p.tramiteInfo || {};
+        detalleProvincias[nombre] = {
+            tramite:        ti.tramite        || null,
+            vigenciaInicio: ti.vigenciaInicio || null,
+            vigenciaFin:    ti.vigenciaFin    || null,
+            estadoTramite:  ti.estadoTramite  || null,
+            urlCertificado: ti.urlCertificado || null,
+            urlPermisoOperaciones: p.urlPermisoOperaciones || null,
+            urlTenenciaArmas:      p.urlTenenciaArmas      || null,
+            urlPermisoUniforme:    p.urlPermisoUniforme    || null,
+            supervisores:   Array.isArray(p.supervisores)  ? p.supervisores  : [],
+            proyectosList:  Array.isArray(p.proyectosList) ? p.proyectosList : []
+        };
     });
-
-    // Resumen ejecutivo
-    document.getElementById('total-guardias').innerText   = totals.G.toLocaleString();
-    document.getElementById('total-armas').innerText      = totals.A;
-    document.getElementById('total-puestos').innerText    = totals.Pu;
-    document.getElementById('total-proyectos').innerText  = totals.Pr;
-    document.getElementById('total-provincias').innerText = totals.Prov;
-
-    // Alerta nacional de vacantes — solo se muestra si hay al menos 1
-    const alertaVac = document.getElementById('alerta-vacantes-nacional');
-    if (alertaVac) {
-        if (vacantesNacional > 0) {
-            alertaVac.style.display = 'flex';
-            document.getElementById('total-vacantes-nacional').textContent = vacantesNacional;
-        } else {
-            alertaVac.style.display = 'none';
-        }
-    }
-
-    // Resumen armamento — todos los valores calculados automáticamente
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val !== null && val !== undefined ? val : '—'; };
-    set('armas-operativas-tbl', armamento.enCampo  ?? totals.A);
-    set('armas-transito',       armamento.enTransito);
-    set('armas-rastrillo',      armamento.rastrillo);
-    set('armas-perdida',        armamento.perdida);
-    set('armas-confiscada',     armamento.confiscada);
-    set('armas-global',         armamento.global);
-    // En campo en resumen ejecutivo = suma real de proyectosList
-    document.getElementById('total-armas').innerText = totals.A;
-}
-
-function markerColor(info) {
-    if (info.cat === 'active')
-        return (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL') ? '#2563eb' : '#16a34a';
-    if (info.cat === 'agency_only') return '#f59e0b';
-    return '#ef4444';
-}
-
-function createMarker(name, info) {
-    const color   = markerColor(info);
-    const cleanId = name.replace(/\s/g,'');
-    const marker  = document.createElement('div');
-    marker.className = 'marker';
-    marker.style.left = info.x + '%';
-    marker.style.top  = info.y + '%';
-    marker.style.backgroundColor = color;
-    marker.id = `marker-${cleanId}`;
-
-    if (info.cat === 'active') {
-        const pulse = document.createElement('div');
-        pulse.className = 'marker-pulse';
-        pulse.style.backgroundColor = color;
-        marker.appendChild(pulse);
-    }
-
-    marker.onmousemove = (e) => showTooltip(e, name, info);
-    marker.onmouseleave = hideTooltip;
-    marker.onclick = () => {
-        hideTooltip();
-        highlightCard(cleanId);
-        renderDetailPanel(name);
-        // Si tiene puestos registrados, ofrecer vista de mapa
-        if (info.cat === 'active' && puestosData[name]) {
-            abrirVistaProvincia(name);
-        }
-    };
-    markersLayer.appendChild(marker);
-}
-
-function createListItem(name, info) {
-    const cleanId = name.replace(/\s/g,'');
-    let borderCls = 'border-l-red-500';
-    let bgCls     = 'bg-slate-50';
-    if (info.cat === 'active') {
-        borderCls = (info.tipo === 'MATRIZ' || info.tipo === 'SUCURSAL') ? 'border-l-blue-600' : 'border-l-green-600';
-        bgCls     = 'bg-white';
-    } else if (info.cat === 'agency_only') {
-        borderCls = 'border-l-yellow-500';
-    }
-
-    const div = document.createElement('div');
-    div.id        = `card-${cleanId}`;
-    div.className = `p-3 ${bgCls} border border-slate-200 rounded-xl transition-all hover:shadow-md cursor-pointer group border-l-4 ${borderCls}`;
-
-    div.innerHTML = `
-        <div class="flex justify-between items-start">
-            <div>
-                <h4 class="font-black text-slate-800 text-xs group-hover:text-blue-600 transition-colors">${name}</h4>
-                <p class="text-[9px] font-bold text-slate-400 uppercase">${info.estado}</p>
-            </div>
-            ${info.proyectos > 0
-                ? `<span class="bg-blue-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full card-proy-badge-${cleanId}">${info.proyectos} PROY.</span>`
-                : ''}
-        </div>
-        ${info.proyectos > 0 ? `
-        <div class="grid grid-cols-2 gap-2 mt-2 text-[10px]">
-            <div class="flex items-center justify-between gap-1 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
-                <span class="text-red-600 font-bold uppercase flex items-center gap-1">🔫 Arma(s)</span>
-                <span class="font-black text-red-700 card-armas-${cleanId}">${info.armas}</span>
-            </div>
-            <div class="flex items-center justify-between gap-1 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1.5">
-                <span class="text-blue-600 font-bold uppercase flex items-center gap-1">👮 Guardia(s)</span>
-                <span class="font-black text-blue-700 card-guardias-${cleanId}">${info.guardias}</span>
-            </div>
-        </div>` : `<p class="text-[9px] text-slate-400 mt-1 font-medium">→ Ver trámite</p>`}
-    `;
-
-    div.onclick = () => {
-        // Scroll al marcador en el mapa
-        const marker = document.getElementById(`marker-${cleanId}`);
-        if (marker) {
-            marker.style.transform = 'translate(-50%, -50%) scale(2.5)';
-            setTimeout(() => marker.style.transform = '', 900);
-        }
-        highlightCard(cleanId);
-        renderDetailPanel(name);
-    };
-
-    listContainer.appendChild(div);
-}
-
-function highlightCard(id) {
-    document.querySelectorAll('.card-selected').forEach(c => c.classList.remove('card-selected'));
-    const card = document.getElementById(`card-${id}`);
-    if (!card) return;
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    card.classList.add('card-selected');
 }
 
 // =====================================================================
-// HELPER: calcular totales de una provincia SEGÚN FILTROS ACTIVOS
-// Devuelve {guardias, armas, puestos, proyectos, proyectosList}
+// DATOS LOCALES DE RESPALDO
 // =====================================================================
+const DATOS_LOCALES_data = {
+    // ACTIVAS CON PROYECTOS
+    "AZUAY":          { x:47, y:67, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:1,  puestos:4,   armas:0,  guardias:5,   cat:'active' },
+    "EL ORO":         { x:36, y:73, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:2,  puestos:5,   armas:3,  guardias:12,  cat:'active' },
+    "ESMERALDAS":     { x:41, y:17, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:1,  puestos:10,  armas:0,  guardias:27,  cat:'active' },
+    "GUAYAS":         { x:35, y:56, tipo:"MATRIZ",   estado:"VIGENTE",                   proyectos:6,  puestos:88,  armas:73, guardias:200, cat:'active' },
+    "IMBABURA":       { x:58, y:18, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:1,   armas:0,  guardias:3,   cat:'active' },
+    "LOJA":           { x:39, y:84, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:1,   armas:0,  guardias:3,   cat:'active' },
+    "LOS RIOS":       { x:40, y:49, tipo:"AGENCIA",  estado:"EN TRÁMITE",               proyectos:3,  puestos:10,  armas:0,  guardias:13,  cat:'active' },
+    "MANABI":         { x:28, y:36, tipo:"SUCURSAL", estado:"VIGENTE",                   proyectos:4,  puestos:46,  armas:9,  guardias:102, cat:'active' },
+    "PICHINCHA":      { x:53, y:28, tipo:"SUCURSAL", estado:"EN TRÁMITE",               proyectos:6,  puestos:58,  armas:34, guardias:153, cat:'active' },
+    "SANTO DOMINGO":  { x:46, y:32, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:11,  armas:1,  guardias:21,  cat:'active' },
+    "TUNGURAHUA":     { x:55, y:44, tipo:"AGENCIA",  estado:"VIGENTE",                   proyectos:1,  puestos:4,   armas:4,  guardias:5,   cat:'active' },
 
-function showTooltip(e, name, info) {
-    // Usar totales filtrados en el tooltip
-    const tot = calcTotalesFiltrados(name);
-    const hayFiltro = !Object.values(filtrosActivos).every(v => v === 'todos');
+    // SIN PROYECTOS (con trámite registrado)
+    "BOLIVAR":          { x:44, y:53, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "CAÑAR":            { x:46, y:62, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "CARCHI":           { x:61, y:12, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "CHIMBORAZO":       { x:52, y:54, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "COTOPAXI":         { x:51, y:38, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "GALAPAGOS":        { x:7,  y:15, tipo:"N/A",     estado:"SIN REGISTRO",  proyectos:0, puestos:0, armas:0, guardias:0, cat:'none' },
+    "MORONA SANTIAGO":  { x:60, y:65, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "NAPO":             { x:65, y:37, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "ORELLANA":         { x:78, y:35, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "PASTAZA":          { x:72, y:51, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "SANTA ELENA":      { x:19, y:58, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "SUCUMBIOS":        { x:83, y:17, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' },
+    "ZAMORA CHINCHIPE": { x:48, y:88, tipo:"AGENCIA", estado:"SIN PROYECTOS", proyectos:0, puestos:0, armas:0, guardias:0, cat:'agency_only' }
+};
 
-    tooltip.style.display = 'block';
-    tooltip.innerHTML = `
-        <div class="text-[9px] font-bold text-blue-400 uppercase mb-1">${info.tipo}</div>
-        <div class="text-sm font-black border-b border-white/10 pb-2 mb-2">${name}</div>
-        ${hayFiltro ? `<div class="text-[8px] text-amber-400 font-bold mb-2 flex items-center gap-1">⚙️ Mostrando datos filtrados</div>` : ''}
-        <div class="grid grid-cols-2 gap-3 text-[11px]">
-            <div><div class="text-slate-400 text-[9px] uppercase">Puesto(s)</div><div class="font-bold">${tot.puestos}</div></div>
-            <div><div class="text-slate-400 text-[9px] uppercase">Guardia(s)</div><div class="font-bold text-blue-400">${tot.guardias}</div></div>
-            <div><div class="text-slate-400 text-[9px] uppercase">Proyecto(s)</div><div class="font-bold">${tot.proyectos}</div></div>
-            <div><div class="text-slate-400 text-[9px] uppercase">Arma(s)</div><div class="font-bold text-green-400">${tot.armas}</div></div>
-        </div>
-        <div class="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300 uppercase">
-            Estado: <span class="${info.estado==='VIGENTE'?'text-green-400':'text-amber-400'} font-bold">${info.estado}</span>
-        </div>
-        ${info.cat==='active' ? '<div class="mt-1 text-[9px] text-blue-300 font-medium">→ Clic para ver detalle completo</div>' : '<div class="mt-1 text-[9px] text-slate-400 font-medium">→ Clic para ver trámite</div>'}
-    `;
-    const x = e.clientX + 20;
-    const y = e.clientY + 20;
-    tooltip.style.left = (x + 220 > window.innerWidth ? e.clientX - 240 : x) + 'px';
-    tooltip.style.top  = (y + 160 > window.innerHeight ? e.clientY - 180 : y) + 'px';
-}
+const DATOS_LOCALES_detalle = {
+    // ── PROVINCIAS CON PROYECTOS ACTIVOS ──────────────────────────────
+    "AZUAY": {
+        tramite:        "SOL-0002153858",
+        vigenciaInicio: null,
+        vigenciaFin:    null,
+        estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+        supervisores:   ["Freddy Carrera"],
+        proyectosList: [
+            { nombre: "COORDINACIÓN ZONAL 6", guardias: 5, armas: 0, puestos: 4, fin: "2026-09-30", supervisores: ["Freddy Carrera"] }
+        ]
+    },
+    "EL ORO": {
+        tramite:        "TRA-0002119371",
+        vigenciaInicio: "2026-03-05",
+        vigenciaFin:    "2028-03-05",
+        supervisores:   ["Raúl Illesca"],
+        proyectosList: [
+            { nombre: "MSP SANTA ROSA",  guardias: 9, armas: 2, puestos: 3, fin: "2026-06-30", supervisores: ["Raúl Illesca"] },
+            { nombre: "MERCADO MACHALA", guardias: 3, armas: 1, puestos: 2, fin: "2026-12-13", supervisores: ["Raúl Illesca"] }
+        ]
+    },
+    "ESMERALDAS": {
+        tramite:        "SOL-0002181487",
+        vigenciaInicio: null,
+        vigenciaFin:    null,
+        estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+        supervisores:   ["Johan Cuasaluzan"],
+        proyectosList: [
+            { nombre: "ESMERALDAS MIT", guardias: 27, armas: 0, puestos: 10, fin: "2027-01-16", supervisores: ["Johan Cuasaluzan"] }
+        ]
+    },
+    "GUAYAS": {
+        tramite:        "TRA-MATRIZ-GUAYAS",
+        vigenciaInicio: "2025-04-11",
+        vigenciaFin:    "2027-04-10",
+        supervisores:   ["Johanna Hernández", "Jorge Moya", "Gerardo Crispín", "Wilmer Flores"],
+        proyectosList: [
+            { nombre: "CNEL EP GUAYAQUIL/PLAYAS", guardias: 128, armas: 38, puestos: 58, fin: "2026-06-13", supervisores: ["Johanna Hernández", "Jorge Moya", "Gerardo Crispín"] },
+            { nombre: "IESS GUAYAS",              guardias: 59,  armas: 23, puestos: 24, fin: "2026-11-30", supervisores: ["Wilmer Flores"] },
+            { nombre: "MILAGRO EDU",              guardias: 2,   armas: 1,  puestos: 1,  fin: "2026-10-31" },
+            { nombre: "PEDRO CARBO EDU",          guardias: 3,   armas: 1,  puestos: 1,  fin: "2026-12-31" },
+            { nombre: "MSP SALITRE",              guardias: 6,   armas: 0,  puestos: 2,  fin: "2026-07-04" },
+            { nombre: "PREFECTURA VIP",           guardias: 2,   armas: 3,  puestos: 2,  fin: "2027-03-10" }
+        ]
+    },
+    "IMBABURA": {
+        tramite:        "TRA-0001703808",
+        vigenciaInicio: "2024-11-13",
+        vigenciaFin:    "2026-11-13",
+        supervisores:   [],
+        proyectosList: [
+            { nombre: "COORDINACIÓN ZONAL 1", guardias: 3, armas: 0, puestos: 1, fin: "2026-12-10" }
+        ]
+    },
+    "LOJA": {
+        tramite:        "TRA-0001690676",
+        vigenciaInicio: "2024-11-05",
+        vigenciaFin:    "2026-11-05",
+        supervisores:   [],
+        proyectosList: [
+            { nombre: "CELICA EDU", guardias: 3, armas: 0, puestos: 1, fin: "2026-12-31" }
+        ]
+    },
+    "LOS RIOS": {
+        tramite:        "SOL-0002184059",
+        vigenciaInicio: null,
+        vigenciaFin:    null,
+        estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+        supervisores:   ["Wilson Ramírez"],
+        proyectosList: [
+            { nombre: "MSP BABAHOYO 12H", guardias: 3, armas: 0, puestos: 2, fin: "2026-06-30", supervisores: ["Wilson Ramírez"] },
+            { nombre: "MSP BABAHOYO 8H",  guardias: 7, armas: 0, puestos: 7, fin: "2026-06-30", supervisores: ["Wilson Ramírez"] },
+            { nombre: "VINCES EDU",        guardias: 3, armas: 0, puestos: 1, fin: "2026-08-31" }
+        ]
+    },
+    "MANABI": {
+        tramite:        "SOL-0002177824",
+        vigenciaInicio: "2026-04-14",
+        vigenciaFin:    "2028-04-14",
+        supervisores:   ["Luis Zambrano", "Edisson Moreira"],
+        proyectosList: [
+            { nombre: "APM",             guardias: 42, armas: 8, puestos: 14, fin: "2026-12-19", supervisores: ["Luis Zambrano"] },
+            { nombre: "PATIO 300",       guardias: 3,  armas: 0, puestos: 1,  fin: "2027-01-09", supervisores: ["Luis Zambrano"] },
+            { nombre: "HOSP PORTOVIEJO", guardias: 7,  armas: 1, puestos: 6,  fin: "2027-01-28", supervisores: ["Luis Zambrano"] },
+            { nombre: "EL CARMEN EDU",   guardias: 50, armas: 0, puestos: 25, fin: "2026-07-12", supervisores: ["Edisson Moreira"] }
+        ]
+    },
+    "PICHINCHA": {
+        tramite:        "SOL-0002189038",
+        vigenciaInicio: null,
+        vigenciaFin:    null,
+        estadoTramite:  "EN TRÁMITE — Registro de Inspección",
+        supervisores:   ["Milton Márquez", "Lenin Cerón", "Daniel Balero"],
+        proyectosList: [
+            { nombre: "MINISTERIO TRABAJO",              guardias: 2,  armas: 1,  puestos: 2,  fin: "2026-07-28", supervisores: ["Milton Márquez"] },
+            { nombre: "TUMBACO TABABELA",                guardias: 3,  armas: 1,  puestos: 1,  fin: "2026-12-31", supervisores: ["Milton Márquez"] },
+            { nombre: "MINISTERIO SALUD PÚBLICA MATRIZ", guardias: 15, armas: 5,  puestos: 5,  fin: "2026-12-09", supervisores: ["Milton Márquez"] },
+            { nombre: "DISTRITAL 17D03",                 guardias: 84, armas: 5,  puestos: 28, fin: "2026-06-03", supervisores: ["Lenin Cerón"] },
+            { nombre: "MINISTERIO DE GOBIERNO",          guardias: 4,  armas: 4,  puestos: 4,  fin: "2027-01-06", supervisores: ["Milton Márquez"] },
+            { nombre: "MERCADO MAYORISTA QUITO",         guardias: 45, armas: 18, puestos: 18, fin: "2027-04-06", supervisores: ["Daniel Balero"] }
+        ]
+    },
+    "SANTO DOMINGO": {
+        tramite:        "TRA-0002166502",
+        vigenciaInicio: "2026-04-07",
+        vigenciaFin:    "2028-04-07",
+        supervisores:   ["Juan Marcillo"],
+        proyectosList: [
+            { nombre: "IESS STD", guardias: 21, armas: 1, puestos: 11, fin: "2026-11-06", supervisores: ["Juan Marcillo"] }
+        ]
+    },
+    "TUNGURAHUA": {
+        tramite:        "TRA-0001704124",
+        vigenciaInicio: "2024-11-26",
+        vigenciaFin:    "2026-11-26",
+        supervisores:   ["Wilson Chávez"],
+        proyectosList: [
+            { nombre: "PARROQUIAS URBANAS", guardias: 5, armas: 4, puestos: 4, fin: "2026-06-05", supervisores: ["Wilson Chávez"] }
+        ]
+    },
 
-function hideTooltip() { tooltip.style.display = 'none'; }
-
-
-function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+    // ── PROVINCIAS SIN PROYECTOS (solo trámite) ───────────────────────
+    "BOLIVAR": {
+        tramite:        "TRA-0001318517",
+        vigenciaInicio: "2023-08-04",
+        vigenciaFin:    "2025-08-04",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "CAÑAR": {
+        tramite:        "TRA-0001962141",
+        vigenciaInicio: "2025-06-01",
+        vigenciaFin:    "2027-09-01",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "CARCHI": {
+        tramite:        "TRA-0001691256",
+        vigenciaInicio: "2024-10-24",
+        vigenciaFin:    "2026-10-24",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "CHIMBORAZO": {
+        tramite:        "TRA-0001336444",
+        vigenciaInicio: "2023-08-14",
+        vigenciaFin:    "2025-08-14",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "COTOPAXI": {
+        tramite:        "TRA-0001694291",
+        vigenciaInicio: "2024-12-26",
+        vigenciaFin:    "2026-12-26",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "GALAPAGOS": {
+        tramite:        null,
+        vigenciaInicio: null,
+        vigenciaFin:    null,
+        estadoTramite:  "Sin registro de trámite",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "MORONA SANTIAGO": {
+        tramite:        "TRA-0001704006",
+        vigenciaInicio: "2024-11-26",
+        vigenciaFin:    "2026-11-26",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "NAPO": {
+        tramite:        "TRA-0001704249",
+        vigenciaInicio: "2024-11-26",
+        vigenciaFin:    "2026-11-26",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "ORELLANA": {
+        tramite:        "TRA-0001319401",
+        vigenciaInicio: "2023-07-18",
+        vigenciaFin:    "2025-07-18",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "PASTAZA": {
+        tramite:        "TRA-0001309245",
+        vigenciaInicio: "2023-11-09",
+        vigenciaFin:    "2025-11-09",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "SANTA ELENA": {
+        tramite:        "TRA-0001704259",
+        vigenciaInicio: "2024-12-18",
+        vigenciaFin:    "2026-12-18",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "SUCUMBIOS": {
+        tramite:        "TRA-0001318403",
+        vigenciaInicio: "2023-07-18",
+        vigenciaFin:    "2025-07-18",
+        supervisores:   [],
+        proyectosList:  []
+    },
+    "ZAMORA CHINCHIPE": {
+        tramite:        "TRA-0001704054",
+        vigenciaInicio: "2024-11-26",
+        vigenciaFin:    "2026-11-26",
+        supervisores:   [],
+        proyectosList:  []
+    }
+};

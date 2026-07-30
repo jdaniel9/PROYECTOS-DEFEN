@@ -82,4 +82,3 @@ const PUESTOS_LOCALES = {
         ]
     }
 };
- 

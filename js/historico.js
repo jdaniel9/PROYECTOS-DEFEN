@@ -166,6 +166,10 @@ function cerrarDetalleHistorico() {
 // activos (panel del mapa y acordeón de provincia).
 // =====================================================================
 async function archivarProyectoActivo(provincia, nombreProyecto) {
+    if (typeof rolActual === 'function' && rolActual() !== 'admin') {
+        alert('Solo el usuario Administrador puede archivar proyectos.');
+        return;
+    }
     const confirmar = confirm(
         `¿Archivar "${nombreProyecto}"?\n\n` +
         `Esto congelará una fotografía de sus guardias, armas, radios y puestos ` +
@@ -174,10 +178,16 @@ async function archivarProyectoActivo(provincia, nombreProyecto) {
     );
     if (!confirmar) return;
 
+    // Se vuelve a pedir la contraseña — el servidor la valida de nuevo antes
+    // de archivar, para que esta acción no dependa solo del bloqueo visual
+    const password = prompt('Confirma tu contraseña de Administrador para archivar este proyecto:');
+    if (!password) return;
+    const usuario = sessionStorage.getItem('defen_auth_usuario') || '';
+
     try {
         const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({ accion: 'archivar_proyecto', provincia, proyecto: nombreProyecto })
+            body: JSON.stringify({ accion: 'archivar_proyecto', provincia, proyecto: nombreProyecto, usuario, password })
         });
         const json = await res.json();
 

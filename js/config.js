@@ -21,6 +21,7 @@ let novedadesPersonal = { ingresos: [], salidas: [], faltas: [] };
 let llamadosAtencion  = [];
 let vacantesNacional  = 0;
 let historicoProyectos = [];
+let cedulasPorPuesto = {};
 let puestosData       = {};
  
 // ── Estado del panel de filtros globales (arrays = multi-selección) ──
@@ -82,3 +83,4 @@ const PUESTOS_LOCALES = {
         ]
     }
 };
+ 

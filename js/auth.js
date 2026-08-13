@@ -20,6 +20,7 @@
 
 const AUTH_SESSION_KEY  = 'defen_auth_ok';
 const AUTH_ROL_KEY      = 'defen_auth_rol';
+const AUTH_TOKEN_KEY    = 'defen_auth_token';
 const FONDOS_DISPONIBLES = ['img/fondo1.png', 'img/fondo2.png', 'img/fondo3.png', 'img/fondo4.png'];
 const ULTIMO_FONDO_KEY = 'defen_ultimo_fondo';
 
@@ -35,6 +36,15 @@ function estaAutenticado() {
 function rolActual() {
     return (sessionStorage.getItem(AUTH_ROL_KEY) || '').toLowerCase().trim();
 }
+
+function tokenSesionActual() {
+    return sessionStorage.getItem(AUTH_TOKEN_KEY) || '';
+}
+
+function usuarioPuedeGenerarActas() {
+    return ['admin','operaciones'].includes(rolActual());
+}
+
 
 function usuarioPuedeVerArmamentoDetalle() {
     return !ROLES_SIN_ARMAMENTO.includes(rolActual());
@@ -54,6 +64,10 @@ function autocompletarUsuarioPorDepartamento() {
 // Oculta/bloquea en la interfaz lo que el rol actual no puede ver.
 // Se llama después de cada login exitoso (fresco o restaurado de sesión).
 function aplicarPermisosUI() {
+    // Las actas de armamento son exclusivas de ADMIN y OPERACIONES.
+    document.querySelectorAll('[data-permiso-actas]').forEach(el => {
+        el.style.display = usuarioPuedeGenerarActas() ? '' : 'none';
+    });
     if (!usuarioPuedeVerArmamentoDetalle()) {
         // Cubre el botón "Detalle" Y las filas clickeables del resumen
         // (En Campo, En Tránsito, Rastrillo, Pérdida, Confiscada, Global)
@@ -131,6 +145,7 @@ async function intentarLogin(usuario, password, departamento) {
             sessionStorage.setItem('defen_auth_nombre', json.nombre || usuario);
             sessionStorage.setItem('defen_auth_usuario', usuario);
             sessionStorage.setItem(AUTH_ROL_KEY, json.rol || '');
+            sessionStorage.setItem(AUTH_TOKEN_KEY, json.token || '');
             ocultarLogin();
             iniciarDashboard();
             aplicarPermisosUI();
@@ -169,9 +184,15 @@ function inicializarLogin() {
 }
 
 function cerrarSesion() {
+    // El caché contiene una copia temporal de la respuesta del dashboard.
+    // Se elimina al salir para que nunca quede disponible para otro usuario del mismo equipo.
+    Object.keys(sessionStorage)
+        .filter(k => k.startsWith('defen_dashboard_datos_v1_'))
+        .forEach(k => sessionStorage.removeItem(k));
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     sessionStorage.removeItem('defen_auth_nombre');
     sessionStorage.removeItem('defen_auth_usuario');
     sessionStorage.removeItem(AUTH_ROL_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
     location.reload();
 }
